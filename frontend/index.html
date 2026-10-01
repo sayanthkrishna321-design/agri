@@ -3,18 +3,3014 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AgriSentinel X — Geometric Agricultural Intelligence Protocol</title>
+  <title>AgriSentinel X — Agricultural Intelligence & Escrow Platform</title>
   
-  <!-- Modern Geometric Typography from Google Fonts -->
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Leaflet CSS & JS for Interactive Moving GIS Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   
-  <meta name="description" content="Next-generation autonomous agricultural intelligence platform, spot marketplace, and AI insurance copilot." />
+  <style>
+    :root {
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+    * {
+      border-radius: 0px !important; /* Strict 0px Geometric Square Aesthetic */
+      font-family: var(--font-mono);
+    }
+    body {
+      background-color: #F8F9FA;
+      color: #0F172A;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #064E3B;
+    }
+    @keyframes radarScan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+    .animate-radar {
+      animation: radarScan 3s linear infinite;
+    }
+  </style>
 </head>
-<body class="bg-[#F8F9FA] text-slate-900 antialiased selection:bg-[#064E3B] selection:text-white font-sans min-h-screen overflow-x-hidden">
-  <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
+<body class="bg-[#F8F9FA] text-slate-900 antialiased selection:bg-[#064E3B] selection:text-white font-mono min-h-screen">
+
+  <!-- Main App Layout Container -->
+  <div id="app" class="min-h-screen flex flex-col md:flex-row">
+    
+    <!-- Sidebar Container -->
+    <aside id="sidebar-container" class="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-300 flex flex-col justify-between shrink-0 font-mono min-h-screen">
+    </aside>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto min-h-screen">
+      <!-- Top Navigation Bar -->
+      <header id="top-nav" class="bg-white border-b border-slate-300 p-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-20 font-mono">
+      </header>
+
+      <!-- Main View Content Container -->
+      <main id="main-view" class="p-4 md:p-8 max-w-7xl w-full mx-auto flex-1">
+      </main>
+
+      <!-- Commercial Footer -->
+      <footer class="border-t border-slate-300 bg-white p-4 text-xs font-mono text-slate-500 flex flex-col md:flex-row justify-between items-center gap-2">
+        <div class="flex items-center space-x-2">
+          <span class="w-2 h-2 bg-[#064E3B] inline-block"></span>
+          <span class="font-bold text-slate-900 tracking-wider">AGRISENTINEL X</span>
+          <span>— GEOMETRIC AGRICULTURAL INTELLIGENCE PROTOCOL v2.4</span>
+        </div>
+        <div id="api-status-indicator" class="text-amber-800 font-bold">● DEMO MODE: Sample data is temporary in this browser</div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Interactive Application Core Script -->
+  <script>
+    // Set AGRISENTINEL_API_BASE to a public API origin plus /api to enable live data.
+    // In local Vite development, /api is proxied to Django. On Vercel without a backend,
+    // the app uses its built-in demo data and keeps all browser-side interactions available.
+    const apiConfigured = Boolean(window.AGRISENTINEL_API_BASE) || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    const API_BASE = apiConfigured ? (window.AGRISENTINEL_API_BASE || "/api").replace(/\/$/, "") : null;
+    const apiFetch = (path, options) => API_BASE
+      ? fetch(`${API_BASE}${path}`, options)
+      : Promise.reject(new Error("No public API configured; using demo data."));
+    const apiStatusIndicator = document.getElementById("api-status-indicator");
+    if (apiStatusIndicator && apiConfigured) {
+      apiStatusIndicator.textContent = "● BACKEND API BASE CONFIGURED";
+      apiStatusIndicator.className = "text-emerald-800 font-bold";
+    }
+
+    // Initial Commercial Commodities Fixtures
+    const INITIAL_CROPS = [
+      {
+        id: 'crop-101',
+        title: 'Grade A+ Sharbati Wheat',
+        seller: 'Kisan Organics Co-op',
+        sellerType: 'Verified Farmer Co-op',
+        location: 'Ludhiana, Punjab',
+        pricePerQuintal: 2850,
+        pricePerKg: 28.50,
+        quantity: 150,
+        unit: 'Quintals',
+        moisture: '11.2%',
+        grainSize: '3.4mm',
+        aiQualityScore: 98,
+        grade: 'A+',
+        harvestDate: '2026-04-12',
+        image: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&q=80&w=600',
+        description: 'Ultra-premium Sharbati wheat grown with zero chemical pesticides. Exceptionally high protein content and low moisture ideal for bulk milling.'
+      },
+      {
+        id: 'crop-102',
+        title: 'Organic Hybrid Yellow Corn',
+        seller: 'GreenValley Bio-Farms',
+        sellerType: 'Certified Organic',
+        location: 'Haveri, Karnataka',
+        pricePerQuintal: 1980,
+        pricePerKg: 19.80,
+        quantity: 400,
+        unit: 'Quintals',
+        moisture: '12.8%',
+        grainSize: '8.1mm',
+        aiQualityScore: 92,
+        grade: 'A',
+        harvestDate: '2026-03-30',
+        image: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&q=80&w=600',
+        description: 'High-starch yellow corn suitable for industrial feed or starch processing. Lab tested for aflatoxin compliance.'
+      },
+      {
+        id: 'crop-103',
+        title: 'Aromatic Basmati Rice 1121',
+        seller: 'Satnam Agri Estates',
+        sellerType: 'Verified Farmer',
+        location: 'Karnal, Haryana',
+        pricePerQuintal: 4400,
+        pricePerKg: 44.00,
+        quantity: 80,
+        unit: 'Quintals',
+        moisture: '10.5%',
+        grainSize: '8.35mm',
+        aiQualityScore: 96,
+        grade: 'A+',
+        harvestDate: '2026-02-28',
+        image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&q=80&w=600',
+        description: 'Aged extra-long grain basmati with rich aroma and minimal head rice breakage during milling.'
+      },
+      {
+        id: 'crop-104',
+        title: 'Organic Desi Chana (Chickpeas)',
+        seller: 'Malwa Farmers Producer Co',
+        sellerType: 'FPO Verified',
+        location: 'Indore, Madhya Pradesh',
+        pricePerQuintal: 5200,
+        pricePerKg: 52.00,
+        quantity: 120,
+        unit: 'Quintals',
+        moisture: '9.5%',
+        grainSize: '7.2mm',
+        aiQualityScore: 95,
+        grade: 'A+',
+        harvestDate: '2026-03-05',
+        image: 'https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?auto=format&fit=crop&q=80&w=600',
+        description: 'Premium bold Desi Chana with high protein content and uniform grain size. Cleaned and graded via optical sorter.'
+      },
+      {
+        id: 'crop-105',
+        title: 'High-Oleic Soybeans',
+        seller: 'Narmada Bio-Agro',
+        sellerType: 'Verified Farmer',
+        location: 'Ujjain, Madhya Pradesh',
+        pricePerQuintal: 3600,
+        pricePerKg: 36.00,
+        quantity: 220,
+        unit: 'Quintals',
+        moisture: '9.8%',
+        grainSize: '6.0mm',
+        aiQualityScore: 89,
+        grade: 'A',
+        harvestDate: '2026-03-10',
+        image: 'https://images.unsplash.com/photo-1599599810694-b5b37304c03d?auto=format&fit=crop&q=80&w=600',
+        description: 'Non-GMO soybeans optimized for oil extraction. High protein content verified via NIR spectral scanning.'
+      }
+    ];
+
+    window.state = {
+      isLoggedIn: false,
+      currentUser: '',
+      role: '',
+      displayName: '',
+      userLocation: '',
+      currentView: 'login',
+      crops: [...INITIAL_CROPS],
+      offers: [
+        {
+          id: 'OFF-901',
+          cropTitle: 'Grade A+ Sharbati Wheat',
+          cropId: 'crop-101',
+          buyerName: 'AgroCorp Global Processing',
+          buyerRating: '4.9 ★',
+          offeredPrice: 2800,
+          listedPrice: 2850,
+          quantity: 100,
+          totalValue: 280000,
+          deliveryDate: '2026-04-15',
+          escrowStatus: 'Funds Locked in Escrow',
+          status: 'Pending',
+          date: '10 mins ago'
+        },
+        {
+          id: 'OFF-902',
+          cropTitle: 'Organic Hybrid Yellow Corn',
+          cropId: 'crop-102',
+          buyerName: 'Sunshine Feed Mills',
+          buyerRating: '4.7 ★',
+          offeredPrice: 1950,
+          listedPrice: 1980,
+          quantity: 250,
+          totalValue: 487500,
+          deliveryDate: '2026-04-10',
+          escrowStatus: 'Verified Liquid Balance',
+          status: 'Accepted',
+          date: '2 hours ago'
+        }
+      ],
+      orders: [
+        {
+          id: 'ORD-8821',
+          cropTitle: 'Organic Hybrid Yellow Corn',
+          seller: 'GreenValley Bio-Farms',
+          buyer: 'Sunshine Feed Mills',
+          quantity: '250 Quintals',
+          totalPrice: '₹4,87,500',
+          status: 'In Transit & GPS Tracked',
+          currentMilestone: 3,
+          milestones: [
+            { title: 'Contract Locked & Escrow Funded', date: 'Mar 28, 2026', done: true },
+            { title: 'Quality Verification at Gate', date: 'Mar 29, 2026', done: true },
+            { title: 'Dispatched & Live GPS Tracking', date: 'Mar 30, 2026', done: true },
+            { title: 'Hub Inspection & Delivery', date: 'Expected Apr 02', done: false },
+            { title: 'Escrow Auto-Settlement', date: 'Pending Unloading', done: false }
+          ],
+          driver: 'Rajesh Sharma (Truck KA-04-E-8820)',
+          tempHumidity: '24.2°C / 44% RH (Sensors OK)',
+          contractHash: '0x8f3c92a1...b291a4e1',
+          location: 'Nagpur Transit Hub (21.1458° N, 79.0882° E)',
+          lat: 21.1458,
+          lon: 79.0882
+        }
+      ],
+      usersList: [
+        { id: 101, username: 'farmer', name: 'Kisan Organics Co-op #04', role: 'FARMER', location: 'Ludhiana, Punjab', phone: '+91 98765 43210', status: 'VERIFIED' },
+        { id: 102, username: 'kisan_coop', name: 'Satnam Agri Estates', role: 'FARMER', location: 'Karnal, Haryana', phone: '+91 98123 45678', status: 'VERIFIED' },
+        { id: 201, username: 'retailer', name: 'Apex Sourcing Ltd.', role: 'RETAILER', location: 'Nagpur Hub', phone: '+91 91234 56789', status: 'VERIFIED' },
+        { id: 202, username: 'apex_sourcing', name: 'Indore Bio-Grain Processing', role: 'RETAILER', location: 'Indore, MP', phone: '+91 99887 76655', status: 'VERIFIED' },
+        { id: 301, username: 'admin', name: 'System Administrator', role: 'ADMIN', location: 'National Ag Command Center, New Delhi', phone: '+91 11 2345 6789', status: 'SUPERUSER' }
+      ],
+      weather: {
+        tempMax: 32.5,
+        tempMin: 18.9,
+        tempAvg: 26.2,
+        precipMm: 18.4,
+        windKmh: 16.5,
+        humidity: 58,
+        mode: 'Hybrid Forecast (Open-Meteo)',
+        summary: 'Unseasonal rainfall & wind velocity alert active in Punjab & Haryana sectors.'
+      },
+      selectedCrop: INITIAL_CROPS[0],
+      activeOrder: null,
+      chatMessages: [
+        {
+          sender: 'ai',
+          text: 'Greetings. I am AgriSentinel Insurance & Yield Copilot. Query satellite risk records, soil metrics, pest infestation indexes, or PM Fasal Bima Yojana policy claims.',
+          citations: ['Sentinel-2 Radar Grid #402', 'PM Fasal Bima Risk Index 2026', 'ICAR Soil Telemetry Matrix'],
+          time: '10:00 AM'
+        }
+      ],
+      marketplaceSearch: '',
+      marketplaceGrade: 'ALL',
+      loginError: '',
+      latitude: 30.9010,
+      longitude: 75.8573,
+      isAnalyzingClaim: false,
+      activeClaimResult: null,
+      insuranceCases: [
+        {
+          id: 'CASE-PMFBY-901',
+          farmerName: 'Kisan Organics Co-op #04',
+          crop: 'Grade A+ Sharbati Wheat',
+          policyId: 'PMFBY-2026-PB-88912',
+          claimedCause: 'Flood / Excess Rain',
+          lossDate: '2026-03-28',
+          acreage: '5.0 Acres',
+          lat: 30.9010,
+          lon: 75.8573,
+          status: 'DEMO RECORD · NOT VERIFIED',
+          claimScore: '96.4%',
+          payoutAmount: 225000,
+          recommendation: 'PMFBY Clause 7.2 Localized Calamity - 100% Payout Approved via Satellite SAR Radar Verification',
+          noticeCompliant: 'Yes (36 hrs)'
+        },
+        {
+          id: 'CASE-PMFBY-902',
+          farmerName: 'Satnam Agri Estates',
+          crop: 'Aromatic Basmati Rice 1121',
+          policyId: 'PMFBY-2026-HR-44102',
+          claimedCause: 'Unseasonal Rainfall',
+          lossDate: '2026-03-27',
+          acreage: '8.0 Acres',
+          lat: 29.6857,
+          lon: 76.9905,
+          status: 'INTIMATION RECORDED',
+          claimScore: '92.1%',
+          payoutAmount: 360000,
+          recommendation: 'PMFBY Clause 7.4 Post-Harvest Loss - Verification in progress by District Crop Surveyor',
+          noticeCompliant: 'Yes (18 hrs)'
+        }
+      ],
+      deletedCropIds: new Set(),
+      savedLocations: [
+        { id: 'loc-1', name: 'Ludhiana Organic Farm #01', lat: 30.9010, lon: 75.8573, crop: 'Grade A+ Sharbati Wheat' },
+        { id: 'loc-2', name: 'Karnal Agri Estate #02', lat: 29.6857, lon: 76.9905, crop: 'Basmati Rice 1121' },
+        { id: 'loc-3', name: 'Indore Processing Hub', lat: 22.7196, lon: 75.8577, crop: 'Soybeans & Pulse Depot' },
+        { id: 'loc-4', name: 'Haveri Malnad Plot', lat: 14.7954, lon: 75.4026, crop: 'Hybrid Yellow Corn' },
+        { id: 'loc-5', name: 'Ujjain Vertisol Sector', lat: 23.1765, lon: 75.7885, crop: 'Desi Chana' }
+      ]
+    };
+
+    window.state.activeOrder = window.state.orders[0];
+
+    // Geological & GIS Telemetry Data Calculator
+    window.getGeologicalProfile = function(lat, lon) {
+      const latNum = Number(lat) || 30.9010;
+      const lonNum = Number(lon) || 75.8573;
+
+      let soilType = "Indo-Gangetic Deep Alluvial Sandy Loam";
+      let soilFamily = "Sutlej River Floodplain Series";
+      let riverBasin = "Sutlej-Yamuna Alluvial Floodplain";
+      let elevation = (220 + (Math.abs(latNum * 10) % 45)).toFixed(0) + "m MSL";
+      let slope = "0.8% (Flat Floodplain)";
+      let nitrogen = "240 kg/ha (Medium)";
+      let phosphorus = "48 kg/ha (High)";
+      let potassium = "210 kg/ha (High)";
+      let ph = "7.4 (Slightly Alkaline)";
+      let ndvi = (0.76 + (Math.sin(latNum) * 0.04)).toFixed(2);
+      let sarWater = (38.4 + (Math.cos(lonNum) * 5.0)).toFixed(1) + "%";
+
+      if (latNum < 25.0) {
+        soilType = "Malwa Plateau Deep Black Cotton Soil (Vertisol)";
+        soilFamily = "Narmada Vertisol Complex";
+        riverBasin = "Narmada-Kshipra River Basin";
+        elevation = (510 + (Math.abs(latNum * 12) % 80)).toFixed(0) + "m MSL";
+        slope = "2.1% (Undulating Terrain)";
+        nitrogen = "190 kg/ha (Low-Med)";
+        phosphorus = "32 kg/ha (Medium)";
+        potassium = "320 kg/ha (Very High)";
+        ph = "7.8 (Alkaline Vertisol)";
+        ndvi = "0.68";
+        sarWater = "18.4%";
+      } else if (latNum < 28.0) {
+        soilType = "Karnal-Yamuna Alluvial Silt Loam";
+        soilFamily = "Western Yamuna Plain Series";
+        riverBasin = "Upper Yamuna Catchment";
+        elevation = "245m MSL";
+        slope = "1.1% (Gentle Slope)";
+        nitrogen = "225 kg/ha (Med)";
+        phosphorus = "52 kg/ha (High)";
+        potassium = "240 kg/ha (High)";
+        ph = "7.2 (Neutral Alkaline)";
+        ndvi = "0.81";
+        sarWater = "42.1%";
+      }
+
+      return {
+        soilType,
+        soilFamily,
+        riverBasin,
+        elevation,
+        slope,
+        nitrogen,
+        phosphorus,
+        potassium,
+        ph,
+        ndvi,
+        sarWater
+      };
+    };
+
+    // ── Insurance Premium Calculator (Risk-Based, GIS + Weather) ──────────
+    window.calculatePremium = function(lat, lon, cropName, landHectares, cropValuePerHa) {
+      const geo   = window.getGeologicalProfile(lat, lon);
+      const wx    = window.state.weather;
+      const latN  = Number(lat)  || 30.9010;
+      const lonN  = Number(lon)  || 75.8573;
+      const ha    = Number(landHectares)  || 1;
+      const valHa = Number(cropValuePerHa) || 50000;   // ₹/hectare insured value
+
+      // ── Base rate by crop (PMFBY actuarial reference) ───────────────────
+      const cropRates = {
+        'Wheat':   0.015, 'Rice':    0.020, 'Maize':   0.025,
+        'Cotton':  0.035, 'Soybean': 0.030, 'Chana':   0.025,
+        'Sugarcane': 0.018, 'default': 0.022
+      };
+      const cropKey = Object.keys(cropRates).find(k => cropName && cropName.toLowerCase().includes(k.toLowerCase())) || 'default';
+      let baseRate = cropRates[cropKey];
+
+      // ── Geo Risk Multipliers ─────────────────────────────────────────────
+      let geoMultiplier = 1.0;
+      // Slope risk
+      if (geo.slope && geo.slope.includes('2.1')) geoMultiplier += 0.08;  // undulating
+      if (geo.slope && geo.slope.includes('0.8')) geoMultiplier -= 0.02;  // flat floodplain
+      // Soil water-holding / drought risk
+      const moisture = parseFloat(geo.sarWater) || 38;
+      if (moisture < 20) geoMultiplier += 0.12;   // drought-prone (Malwa Vertisol)
+      else if (moisture > 40) geoMultiplier += 0.06; // flood-prone
+      // NDVI crop stress
+      const ndvi = parseFloat(geo.ndvi) || 0.76;
+      if (ndvi < 0.65) geoMultiplier += 0.10;   // stressed crop
+      else if (ndvi > 0.80) geoMultiplier -= 0.04;  // healthy
+      // Elevation flood risk (low elevation = higher flood)
+      const elev = parseFloat(geo.elevation) || 220;
+      if (elev < 200) geoMultiplier += 0.05;
+
+      // ── Weather Risk Multipliers ─────────────────────────────────────────
+      let wxMultiplier = 1.0;
+      const precip = wx.precipMm || 18;
+      const wind   = wx.windKmh  || 16;
+      const tempMax = wx.tempMax || 32;
+      if (precip > 30)  wxMultiplier += 0.15;   // heavy rain risk
+      else if (precip < 5) wxMultiplier += 0.08; // drought risk
+      if (wind > 30)    wxMultiplier += 0.10;   // cyclone/wind risk
+      if (tempMax > 40) wxMultiplier += 0.08;   // heat stress risk
+
+      // ── Zone risk factor based on lat/lon band ───────────────────────────
+      let zoneFactor = 1.0;
+      if (latN < 20) zoneFactor = 1.25;        // Peninsular (flood/cyclone)
+      else if (latN < 25) zoneFactor = 1.15;   // Central (Vertisol drought)
+      else if (latN < 30) zoneFactor = 1.05;   // NW Plains
+      else zoneFactor = 1.00;                  // Punjab/Haryana (well irrigated)
+
+      // ── Final effective rate ─────────────────────────────────────────────
+      const effectiveRate = baseRate * geoMultiplier * wxMultiplier * zoneFactor;
+      const annualPremium = ha * valHa * effectiveRate;
+      const monthlyPremium = annualPremium / 12;
+      const sumInsured = ha * valHa;
+      // Farmer share under PMFBY (2% Kharif / 1.5% Rabi, rest subsidised)
+      const pmfbyFarmerShareRate = cropKey === 'Cotton' ? 0.05 : (cropKey === 'Wheat' ? 0.015 : 0.02);
+      const pmfbyAnnual = sumInsured * pmfbyFarmerShareRate;
+      const pmfbyMonthly = pmfbyAnnual / 12;
+
+      // ── Risk Score (0-100) ───────────────────────────────────────────────
+      const riskScore = Math.min(100, Math.round(
+        (geoMultiplier - 1) * 200 + (wxMultiplier - 1) * 200 + (zoneFactor - 1) * 100 + baseRate * 1000
+      ));
+      const riskLabel = riskScore < 25 ? 'LOW' : riskScore < 50 ? 'MODERATE' : riskScore < 75 ? 'HIGH' : 'VERY HIGH';
+      const riskColor = riskScore < 25 ? '#065F46' : riskScore < 50 ? '#92400E' : riskScore < 75 ? '#B45309' : '#991B1B';
+
+      return {
+        cropName, ha, valHa, sumInsured,
+        baseRate: (baseRate * 100).toFixed(2),
+        effectiveRate: (effectiveRate * 100).toFixed(3),
+        annualPremium: Math.round(annualPremium),
+        monthlyPremium: Math.round(monthlyPremium),
+        pmfbyAnnual: Math.round(pmfbyAnnual),
+        pmfbyMonthly: Math.round(pmfbyMonthly),
+        geoMultiplier: geoMultiplier.toFixed(3),
+        wxMultiplier: wxMultiplier.toFixed(3),
+        zoneFactor: zoneFactor.toFixed(2),
+        riskScore, riskLabel, riskColor,
+        soilType: geo.soilType, riverBasin: geo.riverBasin,
+        ndvi: geo.ndvi, sarWater: geo.sarWater,
+        slope: geo.slope, elevation: geo.elevation
+      };
+    };
+
+    // Trigger premium recalculation and re-render results panel
+    window.runPremiumCalc = function() {
+      const lat  = parseFloat(document.getElementById('pc-lat').value)  || window.state.latitude;
+      const lon  = parseFloat(document.getElementById('pc-lon').value)  || window.state.longitude;
+      const crop = document.getElementById('pc-crop').value || 'Wheat';
+      const ha   = parseFloat(document.getElementById('pc-ha').value)   || 1;
+      const val  = parseFloat(document.getElementById('pc-val').value)  || 50000;
+      window.state._premiumResult = window.calculatePremium(lat, lon, crop, ha, val);
+      window.renderMainViewOnly();
+    };
+
+    // ── End premium calculator ─────────────────────────────────────────────
+
+    // Fallback high-tech vector GIS radar map renderer
+    window.renderFallbackGISRadarMap = function(container, lat, lon, geo) {
+      if (!container) return;
+      container.innerHTML = `
+        <div class="w-full h-full bg-slate-950 text-white relative overflow-hidden flex flex-col justify-between p-4 font-mono select-none cursor-pointer" onclick="const clickLat=Number((${lat} + (Math.random()-0.5)*0.01).toFixed(4)); const clickLon=Number((${lon} + (Math.random()-0.5)*0.01).toFixed(4)); window.updateGeologicalDataAndMap(clickLat, clickLon);">
+          <!-- Radar Grid Overlay -->
+          <div class="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:24px_24px] opacity-40"></div>
+          
+          <!-- Radar Scanner Beam Animation -->
+          <div class="absolute inset-0 pointer-events-none overflow-hidden">
+            <div class="w-full h-full bg-gradient-to-b from-emerald-500/10 via-transparent to-transparent animate-radar"></div>
+          </div>
+
+          <!-- Top Radar Data Header -->
+          <div class="z-10 flex justify-between items-start text-xs border-b border-slate-800 pb-2 bg-slate-900/80 p-2.5 backdrop-blur-sm">
+            <div>
+              <div class="text-emerald-400 font-bold flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block"></span>
+                <span>SENTINEL RADAR PARCEL #PB-${Math.floor(lat*100)}-${Math.floor(lon*100)}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 mt-0.5">BASIN: ${geo.riverBasin} • MSL ELEVATION: ${geo.elevation}</div>
+            </div>
+            <div class="text-right">
+              <div class="font-bold text-white text-xs">${lat.toFixed(4)}° N, ${lon.toFixed(4)}° E</div>
+              <div class="text-[10px] text-emerald-400 font-bold mt-0.5">NDVI: ${geo.ndvi} (HEALTHY)</div>
+            </div>
+          </div>
+
+          <!-- Target Marker Crosshair Center -->
+          <div class="z-10 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+            <div class="relative flex items-center justify-center">
+              <div class="w-20 h-20 border border-emerald-500/40 rounded-full animate-ping absolute"></div>
+              <div class="w-12 h-12 border-2 border-emerald-400 flex items-center justify-center bg-emerald-950/90 text-emerald-300 font-bold text-base shadow-xl">
+                📍
+              </div>
+            </div>
+            <div class="bg-slate-900 border border-emerald-500/80 px-3 py-1 text-[10px] font-bold text-white mt-2 inline-block uppercase tracking-wider shadow-md">
+              FARM LOCATION: ${lat}° N, ${lon}° E
+            </div>
+          </div>
+
+          <!-- Bottom Footer Telemetry Info -->
+          <div class="z-10 flex justify-between items-center text-[10px] border-t border-slate-800 pt-2 bg-slate-900/80 p-2.5 backdrop-blur-sm">
+            <div class="text-slate-300">🌱 Soil: <span class="text-white font-bold">${geo.soilType}</span></div>
+            <div class="text-blue-400 font-bold">💧 SAR Moisture: ${geo.sarWater}</div>
+          </div>
+        </div>
+      `;
+    };
+
+    // Interactive Leaflet Moving Map Engine
+    window.initOrUpdateLeafletMap = function(lat, lon) {
+      const mapContainer = document.getElementById('leaflet-moving-map');
+      if (!mapContainer) return;
+
+      const latNum = Number(lat) || 30.9010;
+      const lonNum = Number(lon) || 75.8573;
+      const geo = window.getGeologicalProfile(latNum, lonNum);
+
+      // Clean up detached map instance
+      if (window.leafletInstance) {
+        if (!document.body.contains(window.leafletInstance._container)) {
+          try { window.leafletInstance.remove(); } catch(e) {}
+          window.leafletInstance = null;
+        } else {
+          try {
+            window.leafletInstance.setView([latNum, lonNum], 13);
+            if (window.leafletMarker) {
+              window.leafletMarker.setLatLng([latNum, lonNum]);
+              window.leafletMarker.bindPopup(`
+                <div class="font-mono text-xs p-1">
+                  <b class="text-slate-900 block mb-1">🛰️ PARCEL #PB-${Math.floor(latNum*100)}-${Math.floor(lonNum*100)}</b>
+                  <div>📍 Coords: ${latNum.toFixed(4)}° N, ${lonNum.toFixed(4)}° E</div>
+                  <div>🌱 Soil: ${geo.soilType}</div>
+                  <div class="text-emerald-700 font-bold mt-1">● Sentinel-2 NDVI: ${geo.ndvi}</div>
+                </div>
+              `).openPopup();
+            }
+            setTimeout(() => { try { window.leafletInstance.invalidateSize(); } catch(err) {} }, 100);
+            return;
+          } catch(e) {
+            console.log("Reinitializing Leaflet map instance...", e);
+            window.leafletInstance = null;
+          }
+        }
+      }
+
+      // Initialize Leaflet map on active container
+      if (typeof L !== 'undefined') {
+        try {
+          mapContainer.innerHTML = '';
+          const map = L.map(mapContainer).setView([latNum, lonNum], 13);
+          window.leafletInstance = map;
+
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap | AgriSentinel X Moving GIS Map'
+          }).addTo(map);
+
+          const marker = L.marker([latNum, lonNum]).addTo(map);
+          window.leafletMarker = marker;
+
+          // Render all saved location pins on map
+          if (window.state.savedLocations && Array.isArray(window.state.savedLocations)) {
+            window.state.savedLocations.forEach(loc => {
+              if (Math.abs(Number(loc.lat) - latNum) < 0.0001 && Math.abs(Number(loc.lon) - lonNum) < 0.0001) return;
+              const locGeo = window.getGeologicalProfile(loc.lat, loc.lon);
+              const locM = L.marker([Number(loc.lat), Number(loc.lon)]).addTo(map);
+              locM.bindPopup(`
+                <div class="font-mono text-xs p-1">
+                  <b class="text-[#064E3B] block mb-1">📍 ${loc.name}</b>
+                  <div>📍 Coords: ${Number(loc.lat).toFixed(4)}° N, ${Number(loc.lon).toFixed(4)}° E</div>
+                  <div>🌱 Soil: ${locGeo.soilType}</div>
+                  <div class="mt-2 flex space-x-1">
+                    <button onclick="window.updateGeologicalDataAndMap(${loc.lat}, ${loc.lon})" class="bg-slate-900 text-white font-bold text-[10px] px-2 py-1 uppercase">🎯 PAN TO THIS FARM</button>
+                    <button onclick="window.removeSavedLocation('${loc.id}', event)" class="bg-red-50 text-red-700 font-bold text-[10px] px-2 py-1 uppercase">🗑️ REMOVE</button>
+                  </div>
+                </div>
+              `);
+            });
+          }
+
+          marker.bindPopup(`
+            <div class="font-mono text-xs p-1">
+              <b class="text-slate-900 block mb-1">🛰️ ACTIVE PARCEL #PB-${Math.floor(latNum*100)}-${Math.floor(lonNum*100)}</b>
+              <div>📍 Coords: ${latNum.toFixed(4)}° N, ${latNum.toFixed(4)}° E</div>
+              <div>🌱 Soil: ${geo.soilType}</div>
+              <div class="text-emerald-700 font-bold mt-1">● Sentinel-2 NDVI: ${geo.ndvi}</div>
+            </div>
+          `).openPopup();
+
+          map.on('click', function(e) {
+            const clickLat = Number(e.latlng.lat.toFixed(4));
+            const clickLon = Number(e.latlng.lng.toFixed(4));
+            window.state.latitude = clickLat;
+            window.state.longitude = clickLon;
+
+            const latInput = document.getElementById('gis-lat');
+            const lonInput = document.getElementById('gis-lon');
+            if (latInput) latInput.value = clickLat;
+            if (lonInput) lonInput.value = clickLon;
+
+            window.updateGeologicalDataAndMap(clickLat, clickLon);
+          });
+
+          setTimeout(() => {
+            try { map.invalidateSize(); } catch(err) {}
+          }, 200);
+          return;
+        } catch(err) {
+          console.log("Leaflet map setup notice:", err);
+        }
+      }
+
+      // Fallback high-tech vector radar renderer
+      window.renderFallbackGISRadarMap(mapContainer, latNum, lonNum, geo);
+    };
+
+    window.updateGeologicalDataAndMap = function(lat, lon) {
+      window.state.latitude = Number(lat);
+      window.state.longitude = Number(lon);
+
+      if (window.leafletInstance) {
+        try {
+          window.leafletInstance.setView([Number(lat), Number(lon)], 13);
+          if (window.leafletMarker) {
+            window.leafletMarker.setLatLng([Number(lat), Number(lon)]);
+          }
+        } catch(e) {}
+      }
+      window.renderMainViewOnly();
+    };
+
+    // Universal Addition and Removal Action Handlers for All Dashboards
+    window.deleteCropListing = function(id, e) {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      console.log('Deleting crop listing:', id);
+      const strId = String(id);
+      const numId = strId.replace('crop-', '');
+      if (window.state.deletedCropIds) {
+        window.state.deletedCropIds.add(strId);
+        window.state.deletedCropIds.add(`crop-${numId}`);
+        window.state.deletedCropIds.add(numId);
+      }
+      window.state.crops = window.state.crops.filter(c => {
+        const cId = String(c.id);
+        const cNumId = cId.replace('crop-', '');
+        return cId !== strId && cNumId !== numId && cId !== `crop-${strId}`;
+      });
+      if (window.state.selectedCrop) {
+        const selId = String(window.state.selectedCrop.id);
+        if (selId === strId || selId.replace('crop-', '') === numId) {
+          window.state.selectedCrop = window.state.crops[0] || null;
+        }
+      }
+      window.renderApp();
+
+      if (!isNaN(Number(numId)) && numId.length < 6) {
+        apiFetch(`/crops/${numId}/`, { method: 'DELETE' }).catch(err => console.log('Crop DELETE API fallback:', err));
+      }
+    };
+
+    window.deleteUserAccount = function(id, e) {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      console.log('Deleting user account:', id);
+      const strId = String(id);
+      window.state.usersList = window.state.usersList.filter(u => String(u.id) !== strId);
+      window.renderApp();
+    };
+
+    window.deleteInsuranceClaim = function(id, e) {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      console.log('Deleting insurance claim:', id);
+      const strId = String(id);
+      window.state.insuranceCases = window.state.insuranceCases.filter(c => String(c.id) !== strId);
+      window.renderApp();
+    };
+
+    window.deleteOffer = function(id, e) {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      console.log('Deleting offer:', id);
+      const strId = String(id);
+      window.state.offers = window.state.offers.filter(o => String(o.id) !== strId);
+      window.renderApp();
+    };
+
+    window.deleteOrder = function(id, e) {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      console.log('Deleting order:', id);
+      const strId = String(id);
+      window.state.orders = window.state.orders.filter(o => String(o.id) !== strId);
+      if (window.state.activeOrder && String(window.state.activeOrder.id) === strId) {
+        window.state.activeOrder = window.state.orders[0] || null;
+      }
+      window.renderApp();
+    };
+
+    window.addSavedLocationFromGIS = function(e) {
+      if (e) e.preventDefault();
+      const lat = Number(document.getElementById('gis-lat')?.value) || window.state.latitude || 30.9010;
+      const lon = Number(document.getElementById('gis-lon')?.value) || window.state.longitude || 75.8573;
+      const nameInput = document.getElementById('gis-new-loc-name');
+      const name = nameInput?.value?.trim() || `Farm Parcel (${lat.toFixed(4)}°N, ${lon.toFixed(4)}°E)`;
+
+      const newLoc = {
+        id: `loc-${Date.now()}`,
+        name: name,
+        lat: lat,
+        lon: lon,
+        crop: document.getElementById('gis-crop')?.value || 'Active Farm Crop'
+      };
+
+      if (!window.state.savedLocations) window.state.savedLocations = [];
+      window.state.savedLocations.unshift(newLoc);
+      if (nameInput) nameInput.value = '';
+
+      window.updateGeologicalDataAndMap(lat, lon);
+    };
+
+    window.removeSavedLocation = function(id, e) {
+      if (e && typeof e.stopPropagation === 'function') {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      console.log('Removing saved location:', id);
+      const strId = String(id);
+      window.state.savedLocations = window.state.savedLocations.filter(l => String(l.id) !== strId);
+      window.renderMainViewOnly();
+    };
+
+    window.toggleAddUserModal = function(show) {
+      window.state.showAddUserModal = !!show;
+      window.renderMainViewOnly();
+    };
+
+    window.handleAddUserSubmit = function(e) {
+      if (e) e.preventDefault();
+      const username = document.getElementById('admin-new-username')?.value.trim();
+      const name = document.getElementById('admin-new-name')?.value.trim();
+      const role = document.getElementById('admin-new-role')?.value || 'FARMER';
+      const location = document.getElementById('admin-new-location')?.value.trim() || 'Sector Hub';
+      const phone = document.getElementById('admin-new-phone')?.value.trim() || '+91 98000 11122';
+
+      if (!username || !name) return;
+
+      const newUser = {
+        id: Math.floor(400 + Math.random() * 500),
+        username,
+        name,
+        role: role.toUpperCase(),
+        location,
+        phone,
+        status: 'VERIFIED'
+      };
+
+      window.state.usersList.unshift(newUser);
+      window.state.showAddUserModal = false;
+      window.renderApp();
+    };
+
+    // AI Insurance Claim Audit Verification Handler
+    window.verifyClaimWithAI = async function(e) {
+      if (e) e.preventDefault();
+
+      const lat = Number(document.getElementById('gis-lat')?.value) || window.state.latitude || 30.9010;
+      const lon = Number(document.getElementById('gis-lon')?.value) || window.state.longitude || 75.8573;
+      const crop = document.getElementById('gis-crop')?.value || 'Grade A+ Sharbati Wheat';
+      const cause = document.getElementById('gis-cause')?.value || 'Flood / Excess Rain';
+      const lossDate = document.getElementById('gis-date')?.value || '2026-03-28';
+      const acreage = Number(document.getElementById('gis-acreage')?.value) || 5.0;
+      const policyId = document.getElementById('gis-policy')?.value || 'PMFBY-2026-PB-88912';
+      const ratePerAcre = Number(document.getElementById('gis-rate')?.value) || 45000;
+
+      window.state.latitude = lat;
+      window.state.longitude = lon;
+      window.state.isAnalyzingClaim = true;
+      window.renderMainViewOnly();
+
+      let aiAnswer = "";
+      let aiCitations = [];
+
+      try {
+        const res = await apiFetch('/agent/query/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `Audit PMFBY crop insurance claim for ${crop} damaged by ${cause} at location Lat ${lat}, Lon ${lon} on date ${lossDate}. Policy: ${policyId}, Acreage: ${acreage} Acres. Provide PMFBY clause recommendations and payout calculation.`,
+            latitude: lat,
+            longitude: lon,
+            crop_name: crop,
+            claimed_cause: cause,
+            start_date: lossDate,
+            end_date: lossDate,
+            policy_id: policyId,
+            land_holding_hectares: acreage * 0.404686
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          aiAnswer = data.answer || "";
+          if (data.sources) {
+            aiCitations = data.sources.map(s => s.title || s);
+          }
+        }
+      } catch(err) {
+        console.log("Backend query notice, running PMFBY verification fallback engine", err);
+      }
+
+      const calculatedPayout = acreage * ratePerAcre;
+      const geo = window.getGeologicalProfile(lat, lon);
+
+      window.state.activeClaimResult = {
+        crop,
+        cause,
+        lossDate,
+        acreage,
+        policyId,
+        ratePerAcre,
+        payout: calculatedPayout,
+        lat,
+        lon,
+        score: '96.4%',
+        noticeWindow: 'COMPLIANT (Filed within 36 hrs of loss incident)',
+        sarEvidence: `DEMO DATA ONLY: simulated SAR waterlogging index ${geo.sarWater}; no satellite imagery was queried.`,
+        precipAnomaly: 'DEMO DATA ONLY: rainfall values are illustrative and were not retrieved from a weather service.',
+        clause: 'Demonstration only — confirm current PMFBY terms and claim eligibility with your insurer.',
+        recommendation: aiAnswer || `This is a demonstration estimate only, not an eligibility decision or promise of payment. The sample estimate of ₹${calculatedPayout.toLocaleString('en-IN')} uses the acreage and rate entered above. An insurer must assess the actual policy and verified evidence.`,
+        citations: aiCitations.length ? aiCitations : ['Synthetic demonstration map values', 'Synthetic demonstration weather values']
+      };
+
+      window.state.isAnalyzingClaim = false;
+      window.renderMainViewOnly();
+    };
+
+    // Formal Claim Submission to NCIP & Escrow Portal
+    window.submitClaimToNCIP = function() {
+      const claim = window.state.activeClaimResult;
+      if (!claim) return;
+
+      const newCase = {
+        id: `CASE-PMFBY-${Math.floor(1000 + Math.random() * 9000)}`,
+        farmerName: window.state.displayName || 'Kisan Organics Co-op #04',
+        crop: claim.crop,
+        policyId: claim.policyId,
+        claimedCause: claim.cause,
+        lossDate: claim.lossDate,
+        acreage: `${claim.acreage} Acres`,
+        lat: claim.lat,
+        lon: claim.lon,
+        status: 'DEMO RECORD · NOT FILED WITH NCIP',
+        claimScore: claim.score,
+        payoutAmount: claim.payout,
+        recommendation: claim.clause,
+        noticeCompliant: 'Yes (Filed Now)'
+      };
+
+      window.state.insuranceCases.unshift(newCase);
+      alert(`Demo record ${newCase.id} was added to this page only; it was not submitted to NCIP or an insurer.\nIllustrative estimate: ₹${claim.payout.toLocaleString('en-IN')}`);
+      window.renderMainViewOnly();
+
+      apiFetch('/insurance-cases/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          farmer: 3,
+          farm: 1,
+          policy_number: claim.policyId,
+          crop_name: claim.crop,
+          claimed_cause: claim.cause,
+          loss_date: claim.lossDate,
+          affected_area_hectares: claim.acreage * 0.404686,
+          estimated_loss_amount: claim.payout,
+          status: 'SUBMITTED'
+        })
+      }).catch(e => console.log('Insurance API save fallback', e));
+    };
+
+    // Async Backend API Sync
+    async function syncDataFromBackend() {
+      try {
+        const res = await apiFetch('/crops/');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const apiCrops = data
+              .filter(c => !window.state.deletedCropIds || !window.state.deletedCropIds.has(`crop-${c.id}`))
+              .map(c => {
+                const basePrice = Number(c.price_per_unit) || (c.crop_name.includes('Rice') ? 4400 : c.crop_name.includes('Corn') ? 1980 : c.crop_name.includes('Chana') ? 5200 : c.crop_name.includes('Soybean') ? 3600 : 2850);
+                return {
+                  id: `crop-${c.id}`,
+                  title: c.crop_name,
+                  seller: c.farmer_name || 'Kisan Organics Co-op',
+                  sellerType: 'Verified Farmer Co-op',
+                  location: c.farm_location || 'Ludhiana, Punjab',
+                  pricePerQuintal: basePrice,
+                  pricePerKg: Number((basePrice / 100).toFixed(2)),
+                  quantity: c.expected_quantity ? Math.round(Number(c.expected_quantity) / 100) : 150,
+                  unit: 'Quintals',
+                  moisture: '11.2%',
+                  grainSize: '3.4mm',
+                  aiQualityScore: c.status === 'HARVESTED' ? 96 : 98,
+                  grade: c.crop_name.includes('Corn') ? 'A' : 'A+',
+                  harvestDate: c.expected_harvest_date || '2026-04-12',
+                  image: c.crop_name.includes('Rice') ? 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&q=80&w=600' : c.crop_name.includes('Corn') ? 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?auto=format&fit=crop&q=80&w=600' : c.crop_name.includes('Chana') ? 'https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?auto=format&fit=crop&q=80&w=600' : c.crop_name.includes('Soybean') ? 'https://images.unsplash.com/photo-1599599810694-b5b37304c03d?auto=format&fit=crop&q=80&w=600' : 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&q=80&w=600',
+                  description: `Verified ${c.crop_name} harvest (${c.variety || 'Standard'}). Status: ${c.status}.`
+                };
+              });
+            if (apiCrops.length > 0) {
+              window.state.crops = apiCrops;
+              if (!window.state.selectedCrop || !apiCrops.some(c => String(c.id) === String(window.state.selectedCrop.id))) {
+                window.state.selectedCrop = apiCrops[0];
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.log("Crops backend sync notice:", err);
+      }
+      window.renderApp();
+    }
+
+    // Live Telemetry GPS Simulator
+    setInterval(() => {
+      if (window.state.activeOrder) {
+        const ord = window.state.activeOrder;
+        ord.lat = Number((ord.lat + 0.0003).toFixed(4));
+        ord.lon = Number((ord.lon + 0.0004).toFixed(4));
+        ord.location = `Transit Sector ${ord.lat}° N, ${ord.lon}° E`;
+        const temp = (23.8 + Math.sin(Date.now() / 5000) * 1.5).toFixed(1);
+        ord.tempHumidity = `${temp}°C / 44% RH (Sensors Active)`;
+        if (window.state.currentView === 'order-tracking') {
+          window.renderMainViewOnly();
+        }
+      }
+    }, 4000);
+
+    // Authentication & Role Routing Logic
+    window.handleLoginSubmit = async function(e) {
+      if (e) e.preventDefault();
+      const usernameInput = document.getElementById('login-username')?.value.trim();
+      const passwordInput = document.getElementById('login-password')?.value.trim();
+
+      if (!usernameInput || !passwordInput) {
+        window.state.loginError = "Please fill in both username and password fields.";
+        window.renderMainViewOnly();
+        return;
+      }
+
+      window.state.loginError = "";
+
+      // Capture custom Location Login input coordinates
+      const latVal = Number(document.getElementById('login-lat')?.value);
+      const lonVal = Number(document.getElementById('login-lon')?.value);
+      const locNameVal = document.getElementById('login-loc-name')?.value?.trim();
+
+      if (!isNaN(latVal) && !isNaN(lonVal) && latVal !== 0) {
+        window.state.latitude = latVal;
+        window.state.longitude = lonVal;
+        if (locNameVal) {
+          const exists = (window.state.savedLocations || []).some(l => l.name === locNameVal || (l.lat === latVal && l.lon === lonVal));
+          if (!exists) {
+            if (!window.state.savedLocations) window.state.savedLocations = [];
+            window.state.savedLocations.unshift({
+              id: `loc-${Date.now()}`,
+              name: locNameVal,
+              lat: latVal,
+              lon: lonVal,
+              crop: 'Primary Login Farm Parcel'
+            });
+          }
+        }
+      }
+
+      try {
+        const res = await apiFetch('/login/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usernameInput, password: passwordInput })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          window.state.isLoggedIn = true;
+          window.state.currentUser = data.username;
+          window.state.role = data.role.toLowerCase();
+          window.state.displayName = data.name;
+          window.state.userLocation = data.location;
+          
+          if (window.state.role === 'farmer') {
+            window.state.currentView = 'farmer-dash';
+          } else if (window.state.role === 'retailer') {
+            window.state.currentView = 'retailer-dash';
+          } else if (window.state.role === 'admin') {
+            window.state.currentView = 'admin-dash';
+          }
+          window.renderApp();
+          return;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          window.state.loginError = errData.error || "Authentication failed. Check credentials.";
+          window.renderMainViewOnly();
+          return;
+        }
+      } catch (err) {
+        console.log("Using standalone authentication routing fallback", err);
+      }
+
+      // Standalone Fallback Role Routing
+      const u = usernameInput.toLowerCase();
+      if (u === 'farmer' || u === 'kisan_coop') {
+        window.state.isLoggedIn = true;
+        window.state.currentUser = u;
+        window.state.role = 'farmer';
+        window.state.displayName = 'Kisan Organics Co-op #04';
+        window.state.currentView = 'farmer-dash';
+      } else if (u === 'retailer' || u === 'apex_sourcing') {
+        window.state.isLoggedIn = true;
+        window.state.currentUser = u;
+        window.state.role = 'retailer';
+        window.state.displayName = 'Apex Sourcing Ltd.';
+        window.state.currentView = 'retailer-dash';
+      } else if (u === 'admin') {
+        window.state.isLoggedIn = true;
+        window.state.currentUser = 'admin';
+        window.state.role = 'admin';
+        window.state.displayName = 'System Administrator';
+        window.state.currentView = 'admin-dash';
+      } else {
+        window.state.loginError = "Invalid credentials. Please enter a valid username and password.";
+      }
+      window.renderApp();
+    };
+
+    window.fillCredentials = function(username, password) {
+      const uInput = document.getElementById('login-username');
+      const pInput = document.getElementById('login-password');
+      if (uInput) uInput.value = username;
+      if (pInput) pInput.value = password;
+      window.handleLoginSubmit();
+    };
+
+    window.handleLogout = function() {
+      window.state.isLoggedIn = false;
+      window.state.currentUser = '';
+      window.state.role = '';
+      window.state.currentView = 'login';
+      window.renderApp();
+    };
+
+    window.setView = function(view) {
+      window.state.currentView = view;
+      window.renderApp();
+    };
+
+    window.inspectCrop = function(id) {
+      const crop = window.state.crops.find(c => c.id === id);
+      if (crop) {
+        window.state.selectedCrop = crop;
+        window.setView('crop-details');
+      }
+    };
+
+    window.initiateOffer = function(id) {
+      window.inspectCrop(id);
+      window.setView('retailer-offer');
+    };
+
+    window.recalculateAIQualityScore = function() {
+      const moisture = parseFloat(document.getElementById('add-moisture')?.value) || 11.2;
+      const grain = parseFloat(document.getElementById('add-grain')?.value) || 3.4;
+      const grade = document.getElementById('add-grade')?.value || 'A+';
+      const price = parseFloat(document.getElementById('add-price')?.value) || 2850;
+
+      let score = 90;
+      if (moisture <= 12.0) score += 5;
+      if (grain >= 3.0) score += 3;
+      if (grade === 'A+') score += 2;
+      if (score > 100) score = 100;
+
+      const scoreEl = document.getElementById('ai-score-preview');
+      const rateEl = document.getElementById('ai-rate-preview');
+      if (scoreEl) scoreEl.innerText = `${score} / 100`;
+      if (rateEl) rateEl.innerText = `₹${(price/100).toFixed(2)}/kg`;
+    };
+
+    window.acceptOffer = function(id) {
+      const offer = window.state.offers.find(o => o.id === id);
+      if (offer) {
+        offer.status = 'Accepted';
+        const newOrder = {
+          id: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
+          cropTitle: offer.cropTitle,
+          seller: 'Kisan Organics Co-op',
+          buyer: offer.buyerName,
+          quantity: `${offer.quantity} Quintals`,
+          totalPrice: `₹${offer.totalValue.toLocaleString('en-IN')}`,
+          status: 'Contract Locked & Escrow Funded',
+          currentMilestone: 1,
+          milestones: [
+            { title: 'Contract Locked & Escrow Funded', date: 'Just now', done: true },
+            { title: 'Quality Verification at Gate', date: 'Active', done: true },
+            { title: 'Dispatched & Live GPS Tracking', date: 'In Progress', done: true },
+            { title: 'Hub Inspection & Delivery', date: 'Expected Apr 02', done: false },
+            { title: 'Escrow Auto-Settlement', date: 'Pending Unloading', done: false }
+          ],
+          driver: 'Rajesh Sharma (Truck KA-04-E-8820)',
+          tempHumidity: '24.1°C / 42% RH (Sensors OK)',
+          contractHash: `0x${Math.random().toString(16).substring(2, 10)}...escrow`,
+          location: 'Farm Origin Gate (Ludhiana, Punjab)',
+          lat: 30.9010,
+          lon: 75.8573
+        };
+        window.state.orders.unshift(newOrder);
+        window.state.activeOrder = newOrder;
+        window.renderApp();
+
+        apiFetch('/orders/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            farmer: 3,
+            retailer: 4,
+            crop: 1,
+            quantity: offer.quantity * 100,
+            agreed_price: offer.offeredPrice,
+            delivery_date: '2026-04-15',
+            status: 'CONFIRMED'
+          })
+        }).catch(e => console.log('Order API save fallback', e));
+      }
+    };
+
+    window.declineOffer = function(id) {
+      const offer = window.state.offers.find(o => o.id === id);
+      if (offer) {
+        offer.status = 'Declined';
+        window.renderApp();
+      }
+    };
+
+    // -- Image upload helpers --
+    window._cropImageDataUrl = null;
+
+    window.handleImageFile = function(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image too large. Please choose a file under 5 MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        window._cropImageDataUrl = ev.target.result;
+        const preview = document.getElementById('img-preview');
+        const name = document.getElementById('img-preview-name');
+        const placeholder = document.getElementById('img-placeholder');
+        const wrap = document.getElementById('img-preview-wrap');
+        if (preview) preview.src = ev.target.result;
+        if (name) name.textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+        if (placeholder) placeholder.classList.add('hidden');
+        if (wrap) wrap.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    };
+
+    window.clearImageUpload = function() {
+      window._cropImageDataUrl = null;
+      const fileInput = document.getElementById('add-image');
+      if (fileInput) fileInput.value = '';
+      const preview = document.getElementById('img-preview');
+      const placeholder = document.getElementById('img-placeholder');
+      const wrap = document.getElementById('img-preview-wrap');
+      if (preview) preview.src = '';
+      if (placeholder) placeholder.classList.remove('hidden');
+      if (wrap) wrap.classList.add('hidden');
+    };
+
+    window.handleAddListing = function(e) {
+      e.preventDefault();
+      const title = document.getElementById('add-title').value;
+      const price = Number(document.getElementById('add-price').value) || 2850;
+      const qty = Number(document.getElementById('add-qty').value) || 150;
+      const moisture = document.getElementById('add-moisture').value || '11.2%';
+      const grain = document.getElementById('add-grain').value || '3.4mm';
+      const grade = document.getElementById('add-grade').value || 'A+';
+      const desc = document.getElementById('add-desc').value || 'Verified crop harvest ready for spot market escrow procurement.';
+      const imageUrl = window._cropImageDataUrl || 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&q=80&w=600';
+
+      const newCrop = {
+        id: `crop-${Date.now()}`,
+        title: title || 'Grade A Sharbati Wheat',
+        seller: window.state.displayName || 'Kisan Organics Co-op',
+        sellerType: 'Verified Farmer Co-op',
+        location: (window.state.savedLocations && window.state.savedLocations.length > 0) ? window.state.savedLocations[0].name : 'Ludhiana, Punjab',
+        pricePerQuintal: price,
+        pricePerKg: (price / 100),
+        quantity: qty,
+        unit: 'Quintals',
+        moisture: moisture,
+        grainSize: grain,
+        aiQualityScore: 98,
+        grade: grade,
+        harvestDate: new Date().toISOString().split('T')[0],
+        image: imageUrl,
+        description: desc
+      };
+
+      // Reset image state for next use
+      window._cropImageDataUrl = null;
+
+      window.state.crops.unshift(newCrop);
+      window.setView('farmer-dash');
+
+      apiFetch('/crops/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          farm: 1,
+          crop_name: newCrop.title,
+          variety: 'Standard HD',
+          planting_date: '2025-11-10',
+          expected_harvest_date: newCrop.harvestDate,
+          expected_quantity: qty * 100,
+          status: 'GROWING'
+        })
+      }).catch(e => console.log('Crop API save fallback', e));
+    };
+
+    window.handleSubmitOffer = function(e) {
+      e.preventDefault();
+      const price = Number(document.getElementById('offer-price').value) || window.state.selectedCrop.pricePerQuintal;
+      const qty = Number(document.getElementById('offer-qty').value) || window.state.selectedCrop.quantity;
+
+      const newOffer = {
+        id: `OFF-${Math.floor(100 + Math.random() * 900)}`,
+        cropTitle: window.state.selectedCrop.title,
+        cropId: window.state.selectedCrop.id,
+        buyerName: window.state.displayName || 'Apex Sourcing Ltd.',
+        buyerRating: '4.9 ★',
+        offeredPrice: price,
+        listedPrice: window.state.selectedCrop.pricePerQuintal,
+        quantity: qty,
+        totalValue: price * qty,
+        deliveryDate: '2026-04-15',
+        escrowStatus: 'Verified Liquid Balance',
+        status: 'Pending',
+        date: 'Just now'
+      };
+
+      window.state.offers.unshift(newOffer);
+      window.setView('retailer-dash');
+
+      apiFetch('/offers/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          farmer: 3,
+          retailer_requirement: 1,
+          quantity: qty * 100,
+          price: price,
+          status: 'PENDING'
+        })
+      }).catch(e => console.log('Offer API save fallback', e));
+    };
+
+    window.sendChatMessage = async function(text) {
+      const inputEl = document.getElementById('chat-input');
+      const msg = text || (inputEl ? inputEl.value : '');
+      if (!msg || !msg.trim()) return;
+
+      window.state.chatMessages.push({
+        sender: 'user',
+        text: msg,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+
+      if (inputEl) inputEl.value = '';
+      window.renderMainViewOnly();
+
+      try {
+        const res = await apiFetch('/agent/query/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: msg,
+            latitude: 30.9010,
+            longitude: 75.8573,
+            crop_name: "Wheat",
+            claimed_cause: "Flood / Excess Rain"
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          window.state.chatMessages.push({
+            sender: 'ai',
+            text: data.answer || "Query processed cleanly by AgriSentinel AI engine.",
+            citations: data.sources ? data.sources.map(s => s.title || s) : ["PMFBY Scheme Rules 2026", "ICAR Soil Telemetry Grid"],
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+          window.renderMainViewOnly();
+          return;
+        }
+      } catch (e) {
+        console.log("AI copilot fallback notice", e);
+      }
+
+      setTimeout(() => {
+        let resp = "Based on multi-spectral satellite telemetry and local weather sensors, your overall field risk rating is currently LOW (12/100).";
+        let citations = ["AgriSentinel Microclimate Sensor Node #12", "National Crop Risk Matrix"];
+
+        const q = msg.toLowerCase();
+        if (q.includes('drought') || q.includes('moisture')) {
+          resp = "Drought risk for your active Sharbati Wheat harvest stands at 8.4% (VERY LOW). Soil moisture levels at 30cm depth are holding steady at 34%. Rain precipitation predicted in 48 hours.";
+          citations = ["Soil Telemetry Sensor #301", "Global Weather Model GFS 0.25°"];
+        } else if (q.includes('pest') || q.includes('infestation')) {
+          resp = "Pest risk index is MODERATE for stem borer due to humidity spikes (58%). Recommended preventative biological spray within 3 days to preserve Grade A+ certification.";
+          citations = ["Regional Entomology Survey v4", "NDVI Thermal Variance Chart"];
+        } else if (q.includes('insurance') || q.includes('claim') || q.includes('pmfby')) {
+          resp = "Under PM Fasal Bima Yojana (PMFBY), crop losses due to unseasonal rain/cyclone within 14 days of harvest qualify for 100% sum insured claim. Notice must be filed within 72 hours via AgriSentinel automated escrow portal.";
+          citations = ["PMFBY Scheme Rulebook 2026 Clause 7.2", "National Crop Insurance Portal (NCIP)"];
+        }
+
+        window.state.chatMessages.push({
+          sender: 'ai',
+          text: resp,
+          citations,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        });
+        window.renderMainViewOnly();
+      }, 400);
+    };
+
+    // Component Renderers
+    function buildSidebarHTML() {
+      if (!window.state.isLoggedIn || window.state.currentView === 'login') {
+        return `
+          <div class="p-6 bg-slate-900 text-white flex flex-col justify-between h-full font-mono">
+            <div>
+              <div class="flex items-center space-x-3 mb-6">
+                <div class="w-10 h-10 bg-[#064E3B] border border-emerald-400 flex items-center justify-center font-bold text-emerald-300 text-lg">AX</div>
+                <div>
+                  <h1 class="font-bold tracking-tight text-sm uppercase">AgriSentinel X</h1>
+                  <p class="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">Geometric Ag Protocol</p>
+                </div>
+              </div>
+              <div class="p-4 border border-slate-700 bg-slate-800 space-y-2 text-xs">
+                <div class="text-emerald-400 font-bold uppercase text-[10px]">AUTH SYSTEM READY</div>
+                <p class="text-slate-300 text-[11px]">Select your role on the right or enter credentials to open your dedicated dashboard.</p>
+              </div>
+            </div>
+            <div class="text-[10px] text-slate-500 border-t border-slate-800 pt-4">
+              ● SECURED BY AGRISENTINEL AUTHENTICATION ENGINE
+            </div>
+          </div>
+        `;
+      }
+
+      const role = window.state.role;
+      const navItems = [
+        { roleRequired: 'farmer', id: 'farmer-dash', label: 'FARM OVERVIEW', code: 'F01', icon: '📊' },
+        { roleRequired: 'retailer', id: 'retailer-dash', label: 'MARKET OVERVIEW', code: 'R01', icon: '📈' },
+        { roleRequired: 'admin', id: 'admin-dash', label: 'GOVERNANCE CENTER', code: 'ADM', icon: '🛡️' },
+        { id: 'insurance-map', label: 'INSURANCE & GIS MAP', code: 'GIS', icon: '🗺️' },
+        { id: 'marketplace', label: 'CROP MARKETPLACE', code: 'M01', icon: '🌾' },
+        { roleRequired: 'farmer', id: 'insurance-premium', label: 'PREMIUM CALCULATOR', code: 'F04', icon: '🧮' },
+        { roleRequired: 'farmer', id: 'add-listing', label: 'ADD NEW LISTING', code: 'F02', icon: '➕' },
+        { roleRequired: 'farmer', id: 'farmer-offers', label: 'RECEIVED OFFERS', code: 'F03', icon: '💰' },
+        { id: 'order-tracking', label: 'ORDER & ESCROW LOGS', code: 'T01', icon: '🚚' },
+        { id: 'chat', label: 'INSURANCE AI CHAT', code: 'AI0', icon: '🤖' }
+      ];
+
+      const filtered = navItems.filter(item => !item.roleRequired || item.roleRequired === role);
+
+      const roleBadge = role === 'farmer' ? '🧑‍🌾 FARMER' : role === 'retailer' ? '🏢 RETAILER' : '🛡️ ADMIN';
+      const roleBg = role === 'farmer' ? 'bg-[#064E3B] text-emerald-300 border-emerald-700' : role === 'retailer' ? 'bg-slate-900 text-white border-slate-700' : 'bg-red-950 text-red-200 border-red-700';
+
+      return `
+        <div class="flex flex-col justify-between h-full font-mono">
+          <div>
+            <div class="p-5 border-b border-slate-300 flex items-center justify-between bg-slate-900 text-white">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-[#064E3B] border border-emerald-400 flex items-center justify-center font-bold text-emerald-300 font-mono text-sm shadow-sm">
+                  AX
+                </div>
+                <div>
+                  <h1 class="font-bold tracking-tight text-sm uppercase">AgriSentinel X</h1>
+                  <p class="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">Geometric Ag Protocol</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-4 border-b border-slate-300 bg-slate-50">
+              <div class="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-1.5">ACTIVE PERSONA SESSION</div>
+              <div class="p-2 border text-xs font-bold uppercase text-center ${roleBg}">
+                ${roleBadge} DASHBOARD
+              </div>
+            </div>
+
+            <nav class="p-3 space-y-1">
+              ${filtered.map(item => {
+                const isActive = window.state.currentView === item.id;
+                return `
+                  <button onclick="window.setView('${item.id}')" class="w-full flex items-center justify-between p-3 border text-left transition-all font-mono text-xs ${isActive ? 'bg-slate-900 text-white border-slate-900 font-bold' : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-slate-50'}">
+                    <div class="flex items-center space-x-2.5">
+                      <span>${item.icon}</span>
+                      <span class="uppercase tracking-tight">${item.label}</span>
+                    </div>
+                    <span class="text-[10px] ${isActive ? 'text-emerald-400' : 'text-slate-400'}">[${item.code}]</span>
+                  </button>
+                `;
+              }).join('')}
+            </nav>
+          </div>
+
+          <div class="p-4 border-t border-slate-300 bg-slate-50">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <div class="w-7 h-7 bg-slate-900 text-emerald-400 flex items-center justify-center font-mono text-xs font-bold border border-slate-700 uppercase">
+                  ${role === 'farmer' ? 'FM' : role === 'retailer' ? 'RT' : 'AD'}
+                </div>
+                <div>
+                  <p class="text-xs font-bold font-mono text-slate-900 truncate max-w-[120px]">
+                    ${window.state.displayName}
+                  </p>
+                  <p class="text-[10px] font-mono text-[#064E3B] font-bold">● ONLINE</p>
+                </div>
+              </div>
+              <button onclick="window.handleLogout()" class="p-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold" title="Logout Session">
+                🔒
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function buildTopNavHTML() {
+      const titles = {
+        'farmer-dash': '🧑‍🌾 FARMER OVERVIEW & TELEMETRY',
+        'retailer-dash': '🏢 RETAILER MARKET TERMINAL',
+        'admin-dash': '🛡️ ADMIN GOVERNANCE COMMAND CENTER',
+        'insurance-map': '🗺️ AI INSURANCE CLAIM VERIFICATION & MOVING GIS MAP',
+        'chat': 'AI RISK & INSURANCE COPILOT',
+        'marketplace': 'SPOT CROP MARKETPLACE',
+        'crop-details': 'CROP ANALYSIS & SPECIFICATIONS',
+        'add-listing': 'CREATE CROP LISTING (AI VALIDATED)',
+        'retailer-offer': 'SUBMIT ESCROW PURCHASE OFFER',
+        'farmer-offers': 'INBOUND ESCROW OFFERS',
+        'order-tracking': 'TRACKING & SMART CONTRACT ESCROW',
+        'login': 'PORTAL AUTHENTICATION & LOGIN'
+      };
+
+      const w = window.state.weather;
+
+      return `
+        <div class="flex items-center space-x-3">
+          <div class="w-2.5 h-2.5 bg-[#064E3B]"></div>
+          <h2 class="text-sm font-mono font-bold uppercase tracking-wider text-slate-900">
+            ${titles[window.state.currentView] || 'AGRISENTINEL X'}
+          </h2>
+        </div>
+
+        <div class="flex items-center space-x-3 text-xs font-mono">
+          <div class="hidden lg:flex items-center space-x-2 border border-slate-300 bg-slate-50 px-3 py-1">
+            <span class="text-slate-500">WEATHER:</span>
+            <span class="font-bold text-slate-900">${w.tempAvg}°C</span>
+            <span class="text-emerald-700 font-bold">RAIN: ${w.precipMm}mm</span>
+          </div>
+
+          <div class="border border-slate-300 bg-slate-50 px-3 py-1 flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="font-bold uppercase text-slate-800">${apiConfigured ? 'BACKEND API CONFIGURED' : 'DEMO MODE: SAMPLE DATA'}</span>
+          </div>
+
+          ${window.state.isLoggedIn ? `
+            <button onclick="window.handleLogout()" class="bg-slate-900 text-white border border-slate-900 px-3 py-1 font-bold uppercase hover:bg-slate-800 transition-all">
+              LOGOUT 🔒
+            </button>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function buildMainViewHTML() {
+      switch (window.state.currentView) {
+        case 'login':
+          return `
+            <div class="max-w-2xl mx-auto my-6 bg-white border border-slate-300 p-8 shadow-sm font-mono space-y-6">
+              <div class="text-center space-y-2 border-b border-slate-200 pb-6">
+                <div class="w-14 h-14 bg-slate-900 text-emerald-400 font-mono text-2xl font-bold border border-slate-700 flex items-center justify-center mx-auto">AX</div>
+                <h1 class="text-2xl font-bold tracking-tight text-slate-900 uppercase">AGRISENTINEL X PORTAL</h1>
+                <p class="text-xs text-slate-500 uppercase">Enter user credentials to access your role-based dashboard</p>
+              </div>
+
+              ${window.state.loginError ? `
+                <div class="p-3 border border-red-500 bg-red-50 text-red-800 font-bold text-xs uppercase flex items-center justify-between">
+                  <span>⚠️ ${window.state.loginError}</span>
+                  <button onclick="window.state.loginError=''; window.renderMainViewOnly();" class="text-red-900 font-bold">✕</button>
+                </div>
+              ` : ''}
+
+              <!-- Credential Login Form -->
+              <form onsubmit="window.handleLoginSubmit(event)" class="space-y-4 text-xs">
+                <div>
+                  <label class="block font-bold text-slate-700 uppercase mb-1">Username / Identifier</label>
+                  <input id="login-username" type="text" required placeholder="e.g. farmer, retailer, admin" class="w-full border border-slate-300 p-3 font-bold focus:outline-none focus:border-slate-900" />
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 uppercase mb-1">Password</label>
+                  <input id="login-password" type="password" required placeholder="••••••••" class="w-full border border-slate-300 p-3 font-bold focus:outline-none focus:border-slate-900" />
+                </div>
+
+                <button type="submit" class="w-full bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 border border-emerald-700 p-3.5 font-bold text-sm uppercase tracking-wider">
+                  AUTHENTICATE & ENTER DASHBOARD →
+                </button>
+              </form>
+
+            </div>
+          `;
+
+        case 'farmer-dash':
+          const pendingOffersCount = window.state.offers.filter(o => o.status === 'Pending').length;
+          const totalOffersValue = window.state.offers.reduce((acc, curr) => acc + curr.totalValue, 0);
+          const w = window.state.weather;
+
+          return `
+            <div class="space-y-6 font-mono">
+              <div class="border border-amber-400 bg-amber-50 text-amber-950 p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-start space-x-3">
+                  <div class="p-2 bg-amber-200 border border-amber-400 text-amber-900 shrink-0 font-bold">⚠️</div>
+                  <div>
+                    <div class="flex items-center space-x-2">
+                      <span class="font-mono text-xs font-bold text-amber-900 uppercase tracking-wider">LIVE WEATHER TELEMETRY ALERT</span>
+                      <span class="text-[10px] font-mono bg-amber-900 text-amber-100 px-1.5 py-0.5 font-bold">${w.mode}</span>
+                    </div>
+                    <p class="text-xs font-mono mt-1 text-amber-900 leading-relaxed">
+                      ${w.summary} Current telemetry: Max ${w.tempMax}°C, Min ${w.tempMin}°C, Precip ${w.precipMm}mm, Wind ${w.windKmh} km/h.
+                    </p>
+                  </div>
+                </div>
+                <button onclick="window.setView('chat')" class="shrink-0 bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 font-mono text-xs font-bold px-4 py-2 uppercase tracking-tight">
+                  Consult AI Copilot
+                </button>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="border border-slate-300 bg-white p-5 aspect-square flex flex-col justify-between hover:border-slate-400 transition-all">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">CROP HEALTH</span>
+                    <span class="w-2.5 h-2.5 bg-emerald-600"></span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900 tracking-tight">OPTIMAL</div>
+                    <div class="text-xs text-emerald-700 font-bold mt-1">94/100 NDVI SCORE</div>
+                  </div>
+                  <div class="text-[10px] text-slate-500 border-t border-slate-200 pt-2">Updated via Sentinel-2 Multispectral</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 aspect-square flex flex-col justify-between hover:border-slate-400 transition-all">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">SOIL MOISTURE</span>
+                    <span class="w-2.5 h-2.5 bg-blue-600"></span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900 tracking-tight">34%</div>
+                    <div class="text-xs text-slate-600 font-bold mt-1">TARGET: 30-38% RANGE</div>
+                  </div>
+                  <div class="text-[10px] text-slate-500 border-t border-slate-200 pt-2">Sensor Node #402 — Root Depth</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 aspect-square flex flex-col justify-between hover:border-slate-400 transition-all">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">YIELD FORECAST</span>
+                    <span class="w-2.5 h-2.5 bg-emerald-600"></span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900 tracking-tight">+15%</div>
+                    <div class="text-xs text-emerald-700 font-bold mt-1">420 QUINTALS EST.</div>
+                  </div>
+                  <div class="text-[10px] text-slate-500 border-t border-slate-200 pt-2">Confidence Interval: 96.2%</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 aspect-square flex flex-col justify-between hover:border-slate-400 transition-all">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase tracking-wider">INBOUND OFFERS</span>
+                    <span class="w-2.5 h-2.5 bg-amber-500"></span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900 tracking-tight">${pendingOffersCount} PENDING</div>
+                    <div class="text-xs text-amber-800 font-bold mt-1">₹${(totalOffersValue / 100000).toFixed(2)} LAKH VALUE</div>
+                  </div>
+                  <button onclick="window.setView('farmer-offers')" class="text-[10px] font-bold text-slate-900 border-t border-slate-200 pt-2 uppercase flex items-center justify-between hover:text-[#064E3B]">
+                    <span>REVIEW OFFERS</span>
+                    <span>→</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 border border-slate-300 bg-white p-6 space-y-4">
+                  <div class="flex justify-between items-center border-b border-slate-200 pb-4">
+                    <div>
+                      <h3 class="font-bold text-sm uppercase text-slate-900">MY CROP LISTINGS & HARVESTS</h3>
+                      <p class="text-xs text-slate-500">Verified commodities active on spot market</p>
+                    </div>
+                    <button onclick="window.setView('add-listing')" class="bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 font-bold text-xs px-3 py-2 border border-emerald-700 uppercase">
+                      + LIST NEW HARVEST
+                    </button>
+                  </div>
+
+                  <div class="space-y-3">
+                    ${window.state.crops.map(c => `
+                      <div class="border border-slate-200 p-4 hover:border-slate-400 transition-all bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div class="flex items-center space-x-3">
+                          <img src="${c.image}" alt="${c.title}" class="w-14 h-14 object-cover border border-slate-300 shrink-0" />
+                          <div>
+                            <div class="flex items-center space-x-2">
+                              <span class="font-bold text-xs text-slate-900">${c.title}</span>
+                              <span class="text-[10px] bg-slate-900 text-white px-1.5 py-0.5 font-bold">GRADE ${c.grade}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">${c.quantity} ${c.unit} • Moisture: ${c.moisture} • Quality AI: ${c.aiQualityScore}%</p>
+                          </div>
+                        </div>
+                        <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200">
+                          <div class="text-right mr-2">
+                            <div class="text-xs font-bold text-slate-900">₹${c.pricePerQuintal}/Q <span class="text-slate-500 text-[10px]">(₹${c.pricePerKg}/kg)</span></div>
+                            <div class="text-[10px] text-slate-500 uppercase">LISTED PRICE</div>
+                          </div>
+                          <button onclick="window.inspectCrop('${c.id}')" class="p-2 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs" title="Inspect Listing">👁️</button>
+                          <button id="btn-remove-crop-${c.id}" onclick="window.deleteCropListing('${c.id}', event)" class="p-2 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs flex items-center space-x-1" title="Remove Listing"><span>🗑️</span><span>REMOVE</span></button>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <div class="space-y-6">
+                  <div class="border border-slate-300 bg-white p-6 space-y-4">
+                    <h3 class="font-bold text-sm uppercase text-slate-900 border-b border-slate-200 pb-3">FIELD SENSOR TELEMETRY</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <div class="text-[10px] text-slate-500 uppercase">AIR TEMP</div>
+                        <div class="text-lg font-bold text-slate-900">${w.tempAvg}°C</div>
+                      </div>
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <div class="text-[10px] text-slate-500 uppercase">HUMIDITY</div>
+                        <div class="text-lg font-bold text-slate-900">${w.humidity}% RH</div>
+                      </div>
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <div class="text-[10px] text-slate-500 uppercase">PRECIPITATION</div>
+                        <div class="text-lg font-bold text-slate-900">${w.precipMm} mm</div>
+                      </div>
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <div class="text-[10px] text-slate-500 uppercase">WIND SPEED</div>
+                        <div class="text-lg font-bold text-slate-900">${w.windKmh} km/h</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="border border-slate-300 bg-white p-6 space-y-3">
+                    <h3 class="font-bold text-sm uppercase text-slate-900 border-b border-slate-200 pb-3">FARMER SHORTCUTS</h3>
+                    <button onclick="window.setView('insurance-map')" class="w-full text-left p-3 border border-emerald-700 bg-[#064E3B] text-emerald-300 hover:bg-emerald-900 flex items-center justify-between text-xs font-bold">
+                      <span>🗺️ AI INSURANCE CLAIMS & GIS MAP</span><span>→</span>
+                    </button>
+                    <button onclick="window.setView('add-listing')" class="w-full text-left p-3 border border-slate-200 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span>+ LIST CROP TO MARKETPLACE</span><span>→</span>
+                    </button>
+                    <button onclick="window.setView('farmer-offers')" class="w-full text-left p-3 border border-slate-200 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span>VIEW ${window.state.offers.length} INBOUND OFFERS</span><span>→</span>
+                    </button>
+                    <button onclick="window.setView('chat')" class="w-full text-left p-3 border border-slate-200 hover:border-slate-400 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-xs font-bold text-slate-800">
+                      <span>ASSESS PEST/WEATHER RISK</span><span>→</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+
+        case 'retailer-dash':
+          return `
+            <div class="space-y-6 font-mono">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between hover:border-slate-400 transition-all min-h-[140px]">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase">TOTAL MARKET VOLUME</span>
+                    <span class="text-emerald-700 font-bold">📊</span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900">850 QUINTALS</div>
+                    <div class="text-xs text-[#064E3B] font-bold mt-1">${window.state.crops.length} VERIFIED FARMS ONLINE</div>
+                  </div>
+                  <div class="text-[10px] text-slate-500 border-t border-slate-200 pt-2">Average Quality Grade: A+</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between hover:border-slate-400 transition-all min-h-[140px]">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase">AI DEMAND FORECAST</span>
+                    <span class="text-blue-700 font-bold">📈</span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900">HIGH DEMAND</div>
+                    <div class="text-xs text-blue-700 font-bold mt-1">WHEAT +4.2% NEXT 14 DAYS</div>
+                  </div>
+                  <div class="text-[10px] text-slate-500 border-t border-slate-200 pt-2">Based on regional mill processing indices</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between hover:border-slate-400 transition-all min-h-[140px]">
+                  <div class="flex justify-between items-start">
+                    <span class="text-xs text-slate-500 font-bold uppercase">ESCROW FUNDS LOCKED</span>
+                    <span class="text-emerald-700 font-bold">🛡️</span>
+                  </div>
+                  <div>
+                    <div class="text-3xl font-bold text-slate-900">₹12,40,000</div>
+                    <div class="text-xs text-[#064E3B] font-bold mt-1">100% SMART CONTRACT PROTECTED</div>
+                  </div>
+                  <div class="text-[10px] text-slate-500 border-t border-slate-200 pt-2">Disbursed upon gate pass receipt</div>
+                </div>
+              </div>
+
+              <div class="border border-slate-300 bg-white p-6 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 border-b border-slate-200 pb-4">
+                  <div>
+                    <h3 class="font-bold text-sm uppercase text-slate-900">SPOT CROP MARKET & AI PRICE PREDICTIONS</h3>
+                    <p class="text-xs text-slate-500">Direct farm gate pricing in ₹/kg and ₹/Quintal</p>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <button onclick="window.setView('add-listing')" class="bg-[#064E3B] text-emerald-300 hover:bg-emerald-900 text-xs font-bold px-3 py-2 border border-emerald-700 uppercase">
+                      + POST REQUIREMENT
+                    </button>
+                    <button onclick="window.setView('marketplace')" class="bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold px-4 py-2 border border-slate-900 uppercase">
+                      BROWSE MARKETPLACE
+                    </button>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-300 bg-slate-100 text-slate-700 uppercase">
+                        <th class="p-3 border-r border-slate-200">Commodity</th>
+                        <th class="p-3 border-r border-slate-200">Grade</th>
+                        <th class="p-3 border-r border-slate-200">Spot Rate (/Quintal)</th>
+                        <th class="p-3 border-r border-slate-200">Rate (/kg)</th>
+                        <th class="p-3 border-r border-slate-200">14-Day AI Forecast</th>
+                        <th class="p-3 border-r border-slate-200">Stock</th>
+                        <th class="p-3">Action Controls</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                      ${window.state.crops.map(c => `
+                        <tr class="hover:bg-slate-50">
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-900">${c.title}</td>
+                          <td class="p-3 border-r border-slate-200"><span class="bg-slate-900 text-white font-bold px-2 py-0.5 text-[10px]">GRADE ${c.grade}</span></td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-900">₹${c.pricePerQuintal}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-emerald-900">₹${c.pricePerKg}/kg</td>
+                          <td class="p-3 border-r border-slate-200 text-emerald-700 font-bold">↑ ₹${(c.pricePerQuintal * 1.04).toFixed(0)} (+4.0%)</td>
+                          <td class="p-3 border-r border-slate-200">${c.quantity} Q</td>
+                          <td class="p-3 space-x-1">
+                            <button onclick="window.inspectCrop('${c.id}')" class="bg-[#064E3B] text-emerald-300 hover:bg-emerald-900 px-3 py-1 font-bold border border-emerald-700 uppercase">INSPECT & BUY</button>
+                            <button id="btn-remove-retailer-crop-${c.id}" onclick="window.deleteCropListing('${c.id}', event)" class="bg-red-50 text-red-700 hover:bg-red-100 px-2 py-1 font-bold border border-red-300 uppercase text-[10px]" title="Remove Commodity">🗑️ REMOVE</button>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          `;
+
+        case 'admin-dash':
+          return `
+            <div class="space-y-6 font-mono">
+              <!-- Admin Header Banner -->
+              <div class="border-2 border-slate-900 bg-slate-900 text-white p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                  <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 bg-red-500 inline-block animate-ping"></span>
+                    <h1 class="text-base font-bold uppercase tracking-wider text-emerald-400">ADMIN GOVERNANCE & PLATFORM COMMAND CENTER</h1>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-1">Superuser Telemetry, User Verification, Smart Contract Audits & System Oversight</p>
+                </div>
+                <div class="flex items-center space-x-2 text-xs font-bold">
+                  <span class="bg-slate-800 border border-slate-700 px-3 py-1 text-slate-300">USER: ADMIN</span>
+                  <span class="bg-emerald-950 border border-emerald-700 px-3 py-1 text-emerald-300">NODE STATUS: 100% HEALTHY</span>
+                </div>
+              </div>
+
+              <!-- Key Platform Aggregate Metrics -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between">
+                  <div class="text-xs text-slate-500 font-bold uppercase">REGISTERED USERS</div>
+                  <div class="text-3xl font-bold text-slate-900 mt-2">${window.state.usersList.length} PROFILES</div>
+                  <div class="text-[10px] text-emerald-800 font-bold border-t border-slate-200 pt-2 mt-2">● 100% VERIFIED ACCOUNTS</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between">
+                  <div class="text-xs text-slate-500 font-bold uppercase">COMMODITY LISTINGS</div>
+                  <div class="text-3xl font-bold text-slate-900 mt-2">${window.state.crops.length} HARVESTS</div>
+                  <div class="text-[10px] text-slate-600 font-bold border-t border-slate-200 pt-2 mt-2">TOTAL VOLUME: 850 QUINTALS</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between">
+                  <div class="text-xs text-slate-500 font-bold uppercase">TOTAL ESCROW VOLUME</div>
+                  <div class="text-3xl font-bold text-[#064E3B] mt-2">₹48,50,000</div>
+                  <div class="text-[10px] text-slate-600 font-bold border-t border-slate-200 pt-2 mt-2">SMART CONTRACT PROTECTED</div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-5 flex flex-col justify-between">
+                  <div class="text-xs text-slate-500 font-bold uppercase">AI AGENT ENGINE</div>
+                  <div class="text-3xl font-bold text-emerald-700 mt-2">ONLINE</div>
+                  <div class="text-[10px] text-slate-600 font-bold border-t border-slate-200 pt-2 mt-2">${apiConfigured ? 'BACKEND API BASE CONFIGURED' : 'DEMO DATA · NO BACKEND CONNECTED'}</div>
+                </div>
+              </div>
+
+              <!-- User Accounts Governance Table -->
+              <div class="border border-slate-300 bg-white p-6 space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                  <h3 class="font-bold text-sm uppercase text-slate-900">PLATFORM USER ACCOUNTS & PERSONA ROLES</h3>
+                  <button onclick="window.toggleAddUserModal(!window.state.showAddUserModal)" class="bg-[#064E3B] text-emerald-300 hover:bg-emerald-900 text-xs font-bold px-3 py-1.5 uppercase border border-emerald-700">
+                    ${window.state.showAddUserModal ? '✕ CANCEL' : '+ ADD NEW USER ACCOUNT'}
+                  </button>
+                </div>
+
+                ${window.state.showAddUserModal ? `
+                  <form onsubmit="window.handleAddUserSubmit(event)" class="p-4 border border-emerald-700 bg-emerald-950/10 text-xs space-y-3 font-mono">
+                    <div class="font-bold text-emerald-900 uppercase">➕ CREATE NEW PLATFORM USER PROFILE</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Username</label>
+                        <input id="admin-new-username" type="text" required placeholder="e.g. malwa_coop" class="w-full border border-slate-300 p-2 font-bold focus:outline-none" />
+                      </div>
+                      <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Full Name / Org</label>
+                        <input id="admin-new-name" type="text" required placeholder="e.g. Malwa Bio Producers" class="w-full border border-slate-300 p-2 font-bold focus:outline-none" />
+                      </div>
+                      <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Persona Role</label>
+                        <select id="admin-new-role" class="w-full border border-slate-300 p-2 font-bold bg-white focus:outline-none">
+                          <option value="FARMER">FARMER</option>
+                          <option value="RETAILER">RETAILER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Location Sector</label>
+                        <input id="admin-new-location" type="text" placeholder="e.g. Ujjain, MP" class="w-full border border-slate-300 p-2 font-bold focus:outline-none" />
+                      </div>
+                      <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">Contact Phone</label>
+                        <input id="admin-new-phone" type="text" placeholder="+91 98765 43210" class="w-full border border-slate-300 p-2 font-bold focus:outline-none" />
+                      </div>
+                    </div>
+                    <div class="flex justify-end space-x-2 pt-2">
+                      <button type="button" onclick="window.toggleAddUserModal(false)" class="border border-slate-300 bg-white px-3 py-1.5 font-bold uppercase text-slate-700">CANCEL</button>
+                      <button type="submit" class="bg-[#064E3B] text-emerald-300 border border-emerald-700 px-4 py-1.5 font-bold uppercase">➕ SAVE USER ACCOUNT</button>
+                    </div>
+                  </form>
+                ` : ''}
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-300 bg-slate-100 text-slate-700 uppercase">
+                        <th class="p-3 border-r border-slate-200">User ID</th>
+                        <th class="p-3 border-r border-slate-200">Username</th>
+                        <th class="p-3 border-r border-slate-200">Display Name / Organization</th>
+                        <th class="p-3 border-r border-slate-200">Persona Role</th>
+                        <th class="p-3 border-r border-slate-200">Location</th>
+                        <th class="p-3 border-r border-slate-200">Status</th>
+                        <th class="p-3">Governance Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                      ${window.state.usersList.map(u => `
+                        <tr class="hover:bg-slate-50">
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-900">#${u.id}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-800">${u.username}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-900">${u.name}</td>
+                          <td class="p-3 border-r border-slate-200">
+                            <span class="px-2 py-0.5 font-bold text-[10px] uppercase border ${u.role === 'FARMER' ? 'bg-emerald-100 text-emerald-950 border-emerald-400' : u.role === 'RETAILER' ? 'bg-slate-900 text-white border-slate-900' : 'bg-red-100 text-red-950 border-red-400'}">${u.role}</span>
+                          </td>
+                          <td class="p-3 border-r border-slate-200 text-slate-600">${u.location}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-emerald-700">● ${u.status}</td>
+                          <td class="p-3 space-x-1">
+                            <button onclick="alert('User #${u.id} credentials verified.')" class="bg-slate-900 text-white px-2 py-1 font-bold text-[10px] uppercase">VERIFY</button>
+                            <button onclick="alert('Audit logs fetched for user #${u.id}.')" class="bg-white border border-slate-300 text-slate-800 px-2 py-1 font-bold text-[10px] uppercase">AUDIT</button>
+                            <button id="btn-remove-user-${u.id}" onclick="window.deleteUserAccount('${u.id}', event)" class="bg-red-50 border border-red-300 text-red-700 hover:bg-red-100 px-2 py-1 font-bold text-[10px] uppercase" title="Remove User Account">🗑️ REMOVE</button>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Marketplace Governance & Moderation -->
+              <div class="border border-slate-300 bg-white p-6 space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                  <h3 class="font-bold text-sm uppercase text-slate-900">MARKETPLACE LISTING MODERATION & SPECTRAL AUDIT</h3>
+                  <div class="flex items-center space-x-2">
+                    <button onclick="window.setView('add-listing')" class="bg-[#064E3B] text-emerald-300 text-xs font-bold px-3 py-1.5 uppercase border border-emerald-700">+ ADD MODERATED ITEM</button>
+                    <button onclick="window.setView('marketplace')" class="bg-slate-900 text-white text-xs font-bold px-3 py-1.5 uppercase border border-slate-900">INSPECT ALL LISTINGS →</button>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-300 bg-slate-100 text-slate-700 uppercase">
+                        <th class="p-3 border-r border-slate-200">Listing ID</th>
+                        <th class="p-3 border-r border-slate-200">Commodity Title</th>
+                        <th class="p-3 border-r border-slate-200">Producer</th>
+                        <th class="p-3 border-r border-slate-200">AI Score</th>
+                        <th class="p-3 border-r border-slate-200">Rate (/Quintal)</th>
+                        <th class="p-3">Moderation Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                      ${window.state.crops.map(c => `
+                        <tr class="hover:bg-slate-50">
+                          <td class="p-3 border-r border-slate-200 font-bold">${c.id}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-900">${c.title}</td>
+                          <td class="p-3 border-r border-slate-200">${c.seller}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-emerald-700">${c.aiQualityScore}% Score</td>
+                          <td class="p-3 border-r border-slate-200 font-bold">₹${c.pricePerQuintal}</td>
+                          <td class="p-3 space-x-1">
+                            <button onclick="alert('Listing ${c.id} quality score re-verified by spectral engine.')" class="bg-[#064E3B] text-emerald-300 px-2 py-1 font-bold text-[10px] uppercase">VERIFY QUALITY</button>
+                            <button id="btn-remove-admin-crop-${c.id}" onclick="window.deleteCropListing('${c.id}', event)" class="bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 px-2 py-1 font-bold text-[10px] uppercase">🗑️ REMOVE LISTING</button>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          `;
+
+        case 'chat':
+          return `
+            <div class="border border-slate-300 bg-white flex flex-col h-[680px] max-w-4xl mx-auto font-mono">
+              <div class="p-4 bg-slate-900 text-white border-b border-slate-300 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                  <div class="w-3 h-3 bg-emerald-500"></div>
+                  <span class="font-bold text-xs sm:text-sm uppercase">AGRISENTINEL AI INSURANCE & RISK COPILOT</span>
+                </div>
+                <span class="text-[10px] text-emerald-400 font-bold border border-emerald-800 px-2 py-0.5 bg-emerald-950">[VERIFIED RAG CITATIONS]</span>
+              </div>
+
+              <div id="chat-box" class="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50">
+                ${window.state.chatMessages.map(m => `
+                  <div class="flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}">
+                    <div class="max-w-2xl border p-4 ${m.sender === 'user' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-900 border-slate-300'}">
+                      <div class="flex items-center justify-between border-b border-slate-200/20 pb-2 mb-2 text-[10px] text-slate-400">
+                        <span class="font-bold uppercase">${m.sender === 'user' ? 'OPERATOR' : 'AGRISENTINEL AI'}</span>
+                        <span>${m.time}</span>
+                      </div>
+                      <p class="text-xs leading-relaxed">${m.text}</p>
+                      ${m.citations ? `
+                        <div class="mt-3 pt-2 border-t border-slate-200 text-[10px] text-slate-500">
+                          <span class="font-bold uppercase text-slate-700 block mb-1">CITATIONS & DATA SOURCES:</span>
+                          <div class="flex flex-wrap gap-1">
+                            ${m.citations.map(c => `<span class="bg-slate-100 border border-slate-300 px-2 py-0.5 text-slate-800">📄 ${c}</span>`).join('')}
+                          </div>
+                        </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+
+              <div class="p-3 bg-white border-t border-slate-200 flex flex-wrap gap-2">
+                <button onclick="window.sendChatMessage('Am I eligible for PMFBY flood insurance claim for wheat in Ludhiana?')" class="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1 text-slate-800 font-semibold">↳ PMFBY wheat flood claim</button>
+                <button onclick="window.sendChatMessage('How to file 72-hour localized calamity notice for excess rain?')" class="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1 text-slate-800 font-semibold">↳ 72-hr calamity notice steps</button>
+                <button onclick="window.sendChatMessage('Assess drought risk and soil moisture for wheat crop')" class="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3 py-1 text-slate-800 font-semibold">↳ Soil moisture risk assessment</button>
+              </div>
+
+              <div class="p-4 bg-white border-t border-slate-300 flex space-x-2">
+                <input id="chat-input" type="text" onkeydown="if(event.key==='Enter') window.sendChatMessage()" placeholder="Ask AI Copilot regarding crop insurance, soil metrics or weather risk..." class="flex-1 border border-slate-300 p-3 text-xs font-mono focus:outline-none focus:border-slate-900" />
+                <button onclick="window.sendChatMessage()" class="bg-[#064E3B] text-emerald-300 hover:bg-emerald-900 border border-emerald-700 px-6 font-bold text-xs uppercase">QUERY</button>
+              </div>
+            </div>
+          `;
+
+        case 'marketplace':
+          const filteredCrops = window.state.crops.filter(c => {
+            const matchesSearch = c.title.toLowerCase().includes(window.state.marketplaceSearch.toLowerCase()) || c.seller.toLowerCase().includes(window.state.marketplaceSearch.toLowerCase());
+            const matchesGrade = window.state.marketplaceGrade === 'ALL' || c.grade === window.state.marketplaceGrade;
+            return matchesSearch && matchesGrade;
+          });
+
+          return `
+            <div class="space-y-6 font-mono">
+              <div class="border border-slate-300 bg-white p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="w-full md:w-80">
+                  <input type="text" value="${window.state.marketplaceSearch}" oninput="window.state.marketplaceSearch=this.value; window.renderMainViewOnly();" placeholder="SEARCH WHEAT, BASMATI, CHANA..." class="w-full border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:border-slate-900 uppercase" />
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-xs font-bold text-slate-500 uppercase">GRADE:</span>
+                    ${['ALL', 'A+', 'A', 'B'].map(g => `
+                      <button onclick="window.state.marketplaceGrade='${g}'; window.renderMainViewOnly();" class="px-3 py-1 text-xs font-bold border ${window.state.marketplaceGrade === g ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300'}">${g}</button>
+                    `).join('')}
+                  </div>
+                  <button onclick="window.setView('add-listing')" class="bg-[#064E3B] text-emerald-300 hover:bg-emerald-900 px-3 py-1 text-xs font-bold border border-emerald-700 uppercase">+ ADD CROP LISTING</button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${filteredCrops.map(c => `
+                  <div class="border border-slate-300 bg-white flex flex-col justify-between hover:border-slate-500 transition-all">
+                    <div>
+                      <div class="relative border-b border-slate-300">
+                        <img src="${c.image}" alt="${c.title}" class="w-full h-48 object-cover rounded-none" />
+                        <div class="absolute top-3 left-3 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 border border-slate-700 uppercase">GRADE ${c.grade}</div>
+                        <div class="absolute bottom-3 right-3 bg-emerald-950 text-emerald-300 text-[10px] font-bold px-2 py-1 border border-emerald-800">AI QUALITY: ${c.aiQualityScore}%</div>
+                      </div>
+
+                      <div class="p-5 space-y-3">
+                        <div>
+                          <h3 class="font-bold text-sm text-slate-900 uppercase">${c.title}</h3>
+                          <p class="text-xs text-slate-500 mt-1">📍 ${c.seller} • ${c.location}</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 border-t border-b border-slate-200 py-3 text-xs">
+                          <div>
+                            <span class="text-[10px] text-slate-500 block uppercase">AVAILABLE STOCK</span>
+                            <span class="font-bold text-slate-900">${c.quantity} ${c.unit}</span>
+                          </div>
+                          <div>
+                            <span class="text-[10px] text-slate-500 block uppercase">GRAIN MOISTURE</span>
+                            <span class="font-bold text-slate-900">${c.moisture}</span>
+                          </div>
+                        </div>
+
+                        <div class="flex justify-between items-baseline">
+                          <div>
+                            <span class="text-[10px] text-slate-500 block uppercase">SPOT RATE</span>
+                            <span class="text-lg font-bold text-slate-900">₹${c.pricePerQuintal}</span>
+                            <span class="text-xs text-slate-500">/ Quintal</span>
+                          </div>
+                          <div class="text-right">
+                            <span class="text-xs font-bold text-emerald-900">₹${c.pricePerKg} / kg</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="p-4 border-t border-slate-300 bg-slate-50 flex gap-2">
+                      <button onclick="window.inspectCrop('${c.id}')" class="flex-1 bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 py-2 font-bold text-xs uppercase">SPECS</button>
+                      <button onclick="window.initiateOffer('${c.id}')" class="flex-1 bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 border border-emerald-700 py-2 font-bold text-xs uppercase">MAKE OFFER</button>
+                      <button id="btn-remove-market-crop-${c.id}" onclick="window.deleteCropListing('${c.id}', event)" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 px-2 py-2 font-bold text-xs uppercase" title="Remove Listing">🗑️</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+
+        case 'crop-details':
+          const crop = window.state.selectedCrop;
+          if (!crop) return `<div class="p-8 text-center font-mono text-xs text-slate-500">NO CROP SELECTED</div>`;
+          return `
+            <div class="space-y-6 font-mono max-w-5xl mx-auto">
+              <button onclick="window.setView('marketplace')" class="text-xs font-bold text-slate-600 hover:text-slate-900 uppercase">← BACK TO MARKETPLACE</button>
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                  <div class="border border-slate-300 bg-white p-2">
+                    <img src="${crop.image}" alt="${crop.title}" class="w-full h-80 object-cover" />
+                  </div>
+                  <div class="border border-slate-300 bg-white p-5 space-y-3">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs text-slate-500 font-bold uppercase">PRODUCER CREDENTIALS</span>
+                      <span class="bg-[#064E3B] text-emerald-300 text-[10px] font-bold px-2 py-0.5 border border-emerald-700">VERIFIED FARMER CO-OP</span>
+                    </div>
+                    <div class="text-sm font-bold text-slate-900">${crop.seller}</div>
+                    <p class="text-xs text-slate-500">📍 Location: ${crop.location}</p>
+                  </div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-6 space-y-6 flex flex-col justify-between">
+                  <div class="space-y-4">
+                    <div class="flex justify-between items-start">
+                      <div>
+                        <span class="bg-slate-900 text-white text-[10px] font-bold px-2 py-1 uppercase">GRADE ${crop.grade}</span>
+                        <h1 class="text-xl font-bold text-slate-900 uppercase mt-2">${crop.title}</h1>
+                      </div>
+                      <div class="text-right">
+                        <span class="text-2xl font-bold text-slate-900">₹${crop.pricePerQuintal}</span>
+                        <span class="text-xs text-slate-500 block">/ QUINTAL (₹${crop.pricePerKg}/kg)</span>
+                      </div>
+                    </div>
+                    <p class="text-xs text-slate-600 leading-relaxed border-t border-b border-slate-200 py-3">${crop.description}</p>
+                    <div>
+                      <h3 class="text-xs font-bold uppercase text-slate-900 mb-3">AI QUALITY SCAN MATRIX</h3>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="p-3 border border-slate-200 bg-slate-50">
+                          <span class="text-[10px] text-slate-500 block uppercase">SPECTRAL QUALITY SCORE</span>
+                          <span class="text-base font-bold text-emerald-700">${crop.aiQualityScore} / 100</span>
+                        </div>
+                        <div class="p-3 border border-slate-200 bg-slate-50">
+                          <span class="text-[10px] text-slate-500 block uppercase">GRAIN MOISTURE LEVEL</span>
+                          <span class="text-base font-bold text-slate-900">${crop.moisture}</span>
+                        </div>
+                        <div class="p-3 border border-slate-200 bg-slate-50">
+                          <span class="text-[10px] text-slate-500 block uppercase">PROTEIN CONTENT</span>
+                          <span class="text-base font-bold text-slate-900">12.4% NIR SCAN</span>
+                        </div>
+                        <div class="p-3 border border-slate-200 bg-slate-50">
+                          <span class="text-[10px] text-slate-500 block uppercase">AFLATOXIN COMPLIANCE</span>
+                          <span class="text-base font-bold text-emerald-700">PASS (&lt; 20 ppb)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex space-x-2">
+                    <button onclick="window.initiateOffer('${crop.id}')" class="flex-1 bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 border border-emerald-700 p-3 font-bold text-xs uppercase">
+                      INITIATE PURCHASE OFFER (ESCROW)
+                    </button>
+                    <button id="btn-remove-details-crop-${crop.id}" onclick="window.deleteCropListing('${crop.id}', event)" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 p-3 font-bold text-xs uppercase">
+                      🗑️ REMOVE
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+
+        case 'add-listing':
+          return `
+            <div class="max-w-2xl mx-auto border border-slate-300 bg-white p-8 font-mono space-y-6">
+              <div class="border-b border-slate-200 pb-4">
+                <h1 class="text-base font-bold uppercase text-slate-900">ADD HARVEST LISTING (AI QUALITY SIMULATOR)</h1>
+                <p class="text-xs text-slate-500">Inputs are evaluated against regional satellite & sensor telemetry</p>
+              </div>
+
+              <form onsubmit="window.handleAddListing(event)" class="space-y-4 text-xs">
+                <div>
+                  <label class="block font-bold text-slate-700 uppercase mb-1">Crop Title & Commodity</label>
+                  <input id="add-title" type="text" required placeholder="e.g. Grade A+ Sharbati Wheat" class="w-full border border-slate-300 p-2.5 focus:outline-none focus:border-slate-900" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Target Price (₹/Quintal)</label>
+                    <input id="add-price" type="number" required value="2850" oninput="window.recalculateAIQualityScore()" class="w-full border border-slate-300 p-2.5 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Quantity (Quintals)</label>
+                    <input id="add-qty" type="number" required value="150" class="w-full border border-slate-300 p-2.5" />
+                  </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Moisture (%)</label>
+                    <input id="add-moisture" type="text" value="11.2%" oninput="window.recalculateAIQualityScore()" class="w-full border border-slate-300 p-2.5" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Grain Size</label>
+                    <input id="add-grain" type="text" value="3.4mm" oninput="window.recalculateAIQualityScore()" class="w-full border border-slate-300 p-2.5" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Assigned Grade</label>
+                    <select id="add-grade" onchange="window.recalculateAIQualityScore()" class="w-full border border-slate-300 p-2.5 bg-white font-bold">
+                      <option value="A+">Grade A+</option>
+                      <option value="A">Grade A</option>
+                      <option value="B">Grade B</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 uppercase mb-1">Description & Harvest Notes</label>
+                  <textarea id="add-desc" rows="3" placeholder="Describe soil origin, pesticide history..." class="w-full border border-slate-300 p-2.5 focus:outline-none focus:border-slate-900"></textarea>
+                </div>
+
+                <!-- IMAGE UPLOAD FIELD -->
+                <div>
+                  <label class="block font-bold text-slate-700 uppercase mb-1">Crop Photo <span class="text-slate-400 normal-case font-normal">(optional &mdash; JPG/PNG/WEBP, max 5 MB)</span></label>
+                  <div id="img-drop-zone"
+                    onclick="document.getElementById('add-image').click()"
+                    ondragover="event.preventDefault(); this.classList.add('border-slate-900','bg-slate-100')"
+                    ondragleave="this.classList.remove('border-slate-900','bg-slate-100')"
+                    ondrop="(function(e){ e.preventDefault(); var f=e.dataTransfer.files[0]; if(f) window.handleImageFile(f); document.getElementById('img-drop-zone').classList.remove('border-slate-900','bg-slate-100'); })(event)"
+                    class="border-2 border-dashed border-slate-300 p-6 text-center cursor-pointer hover:border-slate-600 hover:bg-slate-50 transition-colors">
+                    <div id="img-placeholder" class="space-y-2">
+                      <div class="text-3xl">&#128248;</div>
+                      <p class="text-xs text-slate-500 font-bold uppercase">Click to browse or drag &amp; drop image here</p>
+                      <p class="text-[10px] text-slate-400">Accepted: JPG, PNG, WEBP &bull; Max 5 MB</p>
+                    </div>
+                    <div id="img-preview-wrap" class="hidden">
+                      <img id="img-preview" src="" alt="Crop preview" class="max-h-48 mx-auto object-contain border border-slate-200" />
+                      <p id="img-preview-name" class="mt-2 text-[10px] text-slate-500"></p>
+                      <button type="button" onclick="event.stopPropagation(); window.clearImageUpload()" class="mt-2 text-[10px] text-red-600 font-bold uppercase hover:underline">&times; Remove Image</button>
+                    </div>
+                  </div>
+                  <input id="add-image" type="file" accept="image/*" class="hidden" onchange="window.handleImageFile(this.files[0])" />
+                </div>
+
+                <div class="p-4 border border-emerald-800 bg-[#064E3B] text-emerald-100 space-y-1">
+                  <div class="flex justify-between items-center text-xs font-bold text-emerald-300">
+                    <span>REAL-TIME AI QUALITY SCORE PREDICTION</span>
+                    <span id="ai-score-preview" class="text-base font-bold text-white">98 / 100</span>
+                  </div>
+                  <div class="flex justify-between items-center text-[10px] text-emerald-200">
+                    <span>ESTIMATED RATE (/KG):</span>
+                    <span id="ai-rate-preview" class="font-bold text-emerald-300">₹28.50/kg</span>
+                  </div>
+                </div>
+                <div class="pt-2 flex justify-end space-x-3">
+                  <button type="button" onclick="window.setView('farmer-dash')" class="border border-slate-300 bg-white px-5 py-2 font-bold uppercase text-slate-700">CANCEL</button>
+                  <button type="submit" class="bg-slate-900 text-white border border-slate-900 px-6 py-2 font-bold uppercase">➕ PUBLISH TO MARKETPLACE</button>
+                </div>
+              </form>
+            </div>
+          `;
+
+        case 'insurance-premium': {
+          const pr = window.state._premiumResult || null;
+          const defLat = (window.state.savedLocations && window.state.savedLocations.length > 0 ? window.state.savedLocations[0].lat : window.state.latitude) || 30.9010;
+          const defLon = (window.state.savedLocations && window.state.savedLocations.length > 0 ? window.state.savedLocations[0].lon : window.state.longitude) || 75.8573;
+          const defCrop = (window.state.savedLocations && window.state.savedLocations.length > 0 ? window.state.savedLocations[0].crop : 'Wheat') || 'Wheat';
+          return `
+            <div class="max-w-4xl mx-auto font-mono space-y-6">
+              <div class="border border-slate-300 bg-white p-6 space-y-1">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-4">
+                  <div>
+                    <span class="text-[10px] font-bold bg-[#064E3B] text-emerald-300 px-2 py-0.5 uppercase">PMFBY RISK ENGINE</span>
+                    <h1 class="text-lg font-bold text-slate-900 uppercase mt-1">Agricultural Insurance Premium Calculator</h1>
+                    <p class="text-xs text-slate-500">AI-computed premium using GIS soil telemetry + live weather risk factors</p>
+                  </div>
+                </div>
+
+                <!-- Input Form -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 text-xs">
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Latitude (&#176;N)</label>
+                    <input id="pc-lat" type="number" step="0.0001" value="${defLat}" class="w-full border border-slate-300 p-2.5 font-bold focus:outline-none focus:border-slate-900" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Longitude (&#176;E)</label>
+                    <input id="pc-lon" type="number" step="0.0001" value="${defLon}" class="w-full border border-slate-300 p-2.5 font-bold focus:outline-none focus:border-slate-900" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Crop Type</label>
+                    <select id="pc-crop" class="w-full border border-slate-300 p-2.5 bg-white font-bold focus:outline-none">
+                      <option value="Wheat" ${defCrop.includes('Wheat') ? 'selected' : ''}>Wheat</option>
+                      <option value="Rice" ${defCrop.includes('Rice') || defCrop.includes('Basmati') ? 'selected' : ''}>Rice / Basmati</option>
+                      <option value="Maize" ${defCrop.includes('Corn') || defCrop.includes('Maize') ? 'selected' : ''}>Maize / Corn</option>
+                      <option value="Cotton">Cotton</option>
+                      <option value="Soybean" ${defCrop.includes('Soy') ? 'selected' : ''}>Soybean</option>
+                      <option value="Chana" ${defCrop.includes('Chana') ? 'selected' : ''}>Chana / Pulses</option>
+                      <option value="Sugarcane">Sugarcane</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Land Holding (Hectares)</label>
+                    <input id="pc-ha" type="number" step="0.1" min="0.1" value="2" class="w-full border border-slate-300 p-2.5 font-bold focus:outline-none" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Crop Value (&#8377;/Hectare)</label>
+                    <input id="pc-val" type="number" step="1000" min="10000" value="50000" class="w-full border border-slate-300 p-2.5 font-bold focus:outline-none" />
+                  </div>
+                  <div class="flex items-end">
+                    <button onclick="window.runPremiumCalc()" class="w-full bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 border border-emerald-700 p-2.5 font-bold uppercase text-xs">
+                      &#x1F50D; CALCULATE PREMIUM
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Quick-fill from Saved Locations -->
+                ${(window.state.savedLocations || []).length > 0 ? `
+                  <div class="pt-3 border-t border-slate-200 text-xs">
+                    <span class="font-bold text-slate-500 uppercase text-[10px]">Quick-fill from saved farms:</span>
+                    <div class="flex flex-wrap gap-2 mt-1.5">
+                      ${(window.state.savedLocations || []).map(loc => `
+                        <button type="button" onclick="document.getElementById('pc-lat').value=${loc.lat}; document.getElementById('pc-lon').value=${loc.lon};" class="border border-slate-300 bg-slate-50 hover:bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase">
+                          &#128205; ${loc.name}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+
+              ${pr ? `
+              <!-- Results Panel -->
+              <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+                <!-- Risk Score Card -->
+                <div class="border-2 border-slate-300 bg-white p-6 flex flex-col justify-between" style="border-color: ${pr.riskColor}">
+                  <div>
+                    <span class="text-[10px] font-bold uppercase text-slate-500">COMPOSITE RISK SCORE</span>
+                    <div class="text-6xl font-bold mt-2" style="color: ${pr.riskColor}">${pr.riskScore}</div>
+                    <div class="text-sm font-bold mt-1" style="color: ${pr.riskColor}">${pr.riskLabel} RISK ZONE</div>
+                  </div>
+                  <div class="mt-4 space-y-1 text-[10px] text-slate-600 border-t border-slate-200 pt-3">
+                    <div class="flex justify-between"><span class="font-bold uppercase">Geo Multiplier</span><span>${pr.geoMultiplier}&#215;</span></div>
+                    <div class="flex justify-between"><span class="font-bold uppercase">Weather Multiplier</span><span>${pr.wxMultiplier}&#215;</span></div>
+                    <div class="flex justify-between"><span class="font-bold uppercase">Zone Factor</span><span>${pr.zoneFactor}&#215;</span></div>
+                    <div class="flex justify-between"><span class="font-bold uppercase">Base Rate</span><span>${pr.baseRate}%</span></div>
+                    <div class="flex justify-between font-bold border-t border-slate-300 pt-1 mt-1"><span class="uppercase">Effective Rate</span><span>${pr.effectiveRate}%</span></div>
+                  </div>
+                </div>
+
+                <!-- Premium Breakdown -->
+                <div class="border border-slate-300 bg-white p-6 space-y-4">
+                  <span class="text-[10px] font-bold uppercase text-slate-500">PREMIUM BREAKDOWN</span>
+                  <div class="p-4 bg-[#064E3B] border border-emerald-700 text-center">
+                    <div class="text-emerald-300 text-[10px] font-bold uppercase">MONTHLY PREMIUM (MARKET RATE)</div>
+                    <div class="text-3xl font-bold text-white mt-1">&#8377;${pr.monthlyPremium.toLocaleString('en-IN')}</div>
+                    <div class="text-emerald-400 text-xs mt-0.5">&#8377;${pr.annualPremium.toLocaleString('en-IN')} / year</div>
+                  </div>
+                  <div class="p-4 bg-amber-50 border border-amber-400 text-center">
+                    <div class="text-amber-800 text-[10px] font-bold uppercase">PMFBY SUBSIDISED FARMER SHARE</div>
+                    <div class="text-2xl font-bold text-amber-900 mt-1">&#8377;${pr.pmfbyMonthly.toLocaleString('en-IN')}/mo</div>
+                    <div class="text-amber-700 text-xs mt-0.5">&#8377;${pr.pmfbyAnnual.toLocaleString('en-IN')} / year (Govt subsidises rest)</div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="p-2 border border-slate-200 bg-slate-50">
+                      <div class="text-slate-500 font-bold uppercase text-[10px]">Sum Insured</div>
+                      <div class="font-bold text-slate-900">&#8377;${pr.sumInsured.toLocaleString('en-IN')}</div>
+                    </div>
+                    <div class="p-2 border border-slate-200 bg-slate-50">
+                      <div class="text-slate-500 font-bold uppercase text-[10px]">Land Area</div>
+                      <div class="font-bold text-slate-900">${pr.ha} Ha</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- GIS + Weather Evidence -->
+                <div class="border border-slate-300 bg-white p-6 space-y-3">
+                  <span class="text-[10px] font-bold uppercase text-slate-500">GIS &amp; WEATHER EVIDENCE</span>
+                  <div class="space-y-2 text-[11px]">
+                    <div class="p-2.5 border border-slate-200 bg-slate-50 space-y-0.5">
+                      <div class="font-bold text-slate-500 uppercase text-[10px]">Soil Classification</div>
+                      <div class="font-bold text-slate-900">${pr.soilType}</div>
+                    </div>
+                    <div class="p-2.5 border border-slate-200 bg-slate-50 space-y-0.5">
+                      <div class="font-bold text-slate-500 uppercase text-[10px]">River Basin / Catchment</div>
+                      <div class="font-bold text-slate-900">${pr.riverBasin}</div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                      <div class="p-2 border border-emerald-300 bg-emerald-50">
+                        <div class="font-bold text-slate-500 uppercase text-[10px]">NDVI Index</div>
+                        <div class="font-bold text-emerald-900">${pr.ndvi}</div>
+                      </div>
+                      <div class="p-2 border border-blue-300 bg-blue-50">
+                        <div class="font-bold text-slate-500 uppercase text-[10px]">SAR Moisture</div>
+                        <div class="font-bold text-blue-900">${pr.sarWater}</div>
+                      </div>
+                      <div class="p-2 border border-slate-200 bg-slate-50">
+                        <div class="font-bold text-slate-500 uppercase text-[10px]">Elevation</div>
+                        <div class="font-bold text-slate-900">${pr.elevation}</div>
+                      </div>
+                      <div class="p-2 border border-slate-200 bg-slate-50">
+                        <div class="font-bold text-slate-500 uppercase text-[10px]">Slope</div>
+                        <div class="font-bold text-slate-900">${pr.slope}</div>
+                      </div>
+                    </div>
+                    <div class="p-2.5 border border-slate-200 bg-slate-50 grid grid-cols-3 gap-1 text-[10px]">
+                      <div><div class="text-slate-400 uppercase">Precip</div><div class="font-bold">${window.state.weather.precipMm}mm</div></div>
+                      <div><div class="text-slate-400 uppercase">Temp Max</div><div class="font-bold">${window.state.weather.tempMax}&#176;C</div></div>
+                      <div><div class="text-slate-400 uppercase">Wind</div><div class="font-bold">${window.state.weather.windKmh} km/h</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Risk Factor Breakdown Table -->
+              <div class="border border-slate-300 bg-white p-6">
+                <h3 class="text-xs font-bold uppercase text-slate-900 mb-3">RISK FACTOR AUDIT TRAIL (PMFBY COMPLIANT)</h3>
+                <table class="w-full text-[11px] font-mono border-collapse">
+                  <thead>
+                    <tr class="bg-slate-900 text-white">
+                      <th class="p-2 text-left font-bold uppercase">Risk Factor</th>
+                      <th class="p-2 text-left font-bold uppercase">Source</th>
+                      <th class="p-2 text-right font-bold uppercase">Adjustment</th>
+                      <th class="p-2 text-right font-bold uppercase">Impact</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-200">
+                    <tr class="hover:bg-slate-50"><td class="p-2">Crop Base Premium Rate</td><td class="p-2 text-slate-500">PMFBY Actuarial Table</td><td class="p-2 text-right">${pr.baseRate}%</td><td class="p-2 text-right font-bold">Base</td></tr>
+                    <tr class="hover:bg-slate-50"><td class="p-2">Soil Type &amp; Moisture Risk</td><td class="p-2 text-slate-500">GIS SAR Telemetry (${pr.sarWater} SAR)</td><td class="p-2 text-right">${pr.geoMultiplier}&#215;</td><td class="p-2 text-right font-bold ${parseFloat(pr.geoMultiplier) > 1.05 ? 'text-red-700' : 'text-emerald-700'}">${parseFloat(pr.geoMultiplier) > 1.05 ? '&#9650; ELEVATED' : '&#9660; NORMAL'}</td></tr>
+                    <tr class="hover:bg-slate-50"><td class="p-2">Weather Risk (Precip / Wind / Heat)</td><td class="p-2 text-slate-500">Open-Meteo Hybrid Forecast</td><td class="p-2 text-right">${pr.wxMultiplier}&#215;</td><td class="p-2 text-right font-bold ${parseFloat(pr.wxMultiplier) > 1.05 ? 'text-red-700' : 'text-emerald-700'}">${parseFloat(pr.wxMultiplier) > 1.05 ? '&#9650; ELEVATED' : '&#9660; NORMAL'}</td></tr>
+                    <tr class="hover:bg-slate-50"><td class="p-2">Agro-Climatic Zone Factor</td><td class="p-2 text-slate-500">Lat/Lon Zone Band (${pr.elevation})</td><td class="p-2 text-right">${pr.zoneFactor}&#215;</td><td class="p-2 text-right font-bold">&mdash;</td></tr>
+                    <tr class="bg-slate-900 text-white font-bold"><td class="p-2">Composite Effective Rate</td><td class="p-2">All Factors Combined</td><td class="p-2 text-right">${pr.effectiveRate}%</td><td class="p-2 text-right text-emerald-400">FINAL</td></tr>
+                  </tbody>
+                </table>
+                <p class="text-[10px] text-slate-400 mt-3">&#9432; Premiums computed using PMFBY 2.0 actuarial methodology. Geo-risk from Sentinel-2 SAR + NDVI bands. Weather from Open-Meteo Hybrid Forecast API. This is an AI-assisted estimate; final premium is subject to district-level SLCCCI approval.</p>
+              </div>
+              ` : `
+              <div class="border border-dashed border-slate-300 bg-white p-12 text-center text-slate-400 font-mono">
+                <div class="text-4xl mb-3">&#127919;</div>
+                <p class="text-xs font-bold uppercase">Enter farm coordinates and parameters above, then click <span class="text-[#064E3B]">Calculate Premium</span></p>
+                <p class="text-[10px] mt-1">The engine uses live GIS soil telemetry, SAR moisture data, NDVI crop health index, and weather risk factors to compute a PMFBY-aligned monthly insurance premium.</p>
+              </div>
+              `}
+            </div>
+          `;
+        }
+
+        case 'retailer-offer':
+          const targetCrop = window.state.selectedCrop;
+          if (!targetCrop) return `<div class="p-8 text-center font-mono text-xs text-slate-500">NO CROP SELECTED</div>`;
+          return `
+            <div class="max-w-xl mx-auto border border-slate-300 bg-white p-8 font-mono space-y-6">
+              <div class="border-b border-slate-200 pb-3">
+                <span class="text-[10px] bg-slate-900 text-white px-2 py-0.5 font-bold uppercase">ESCROW PURCHASE AGREEMENT</span>
+                <h1 class="text-base font-bold text-slate-900 uppercase mt-2">SUBMIT OFFER: ${targetCrop.title}</h1>
+                <p class="text-xs text-slate-500">Seller: ${targetCrop.seller} • Location: ${targetCrop.location}</p>
+              </div>
+
+              <form onsubmit="window.handleSubmitOffer(event)" class="space-y-4 text-xs">
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Offered Price (₹/Quintal)</label>
+                    <input id="offer-price" type="number" value="${targetCrop.pricePerQuintal}" class="w-full border border-slate-300 p-2.5 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 uppercase mb-1">Quantity (Quintals)</label>
+                    <input id="offer-qty" type="number" value="${targetCrop.quantity}" class="w-full border border-slate-300 p-2.5 font-bold" />
+                  </div>
+                </div>
+
+                <div class="p-4 border border-slate-300 bg-slate-50 space-y-2">
+                  <div class="flex justify-between items-center text-xs font-bold text-slate-900">
+                    <span>TOTAL ESCROW COMMITMENT:</span>
+                    <span class="text-xl font-bold text-[#064E3B]">₹${(targetCrop.pricePerQuintal * targetCrop.quantity).toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+
+                <div class="flex space-x-3 pt-2">
+                  <button type="button" onclick="window.setView('crop-details')" class="flex-1 border border-slate-300 bg-white p-3 font-bold uppercase text-slate-700">CANCEL</button>
+                  <button type="submit" class="flex-1 bg-[#064E3B] text-emerald-300 border border-emerald-700 p-3 font-bold uppercase">➕ LOCK ESCROW & SUBMIT OFFER</button>
+                </div>
+              </form>
+            </div>
+          `;
+
+        case 'farmer-offers':
+          return `
+            <div class="space-y-6 font-mono max-w-4xl mx-auto">
+              <div class="border-b border-slate-300 pb-3 flex justify-between items-center">
+                <div>
+                  <h1 class="text-base font-bold uppercase text-slate-900">INBOUND ESCROW OFFERS</h1>
+                  <p class="text-xs text-slate-500">Retailer offers submitted with verified liquid balance</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <button onclick="window.setView('marketplace')" class="bg-[#064E3B] text-emerald-300 text-xs font-bold px-3 py-1 uppercase border border-emerald-700">+ NEW OFFER</button>
+                  <span class="bg-slate-900 text-white text-xs font-bold px-3 py-1 uppercase">${window.state.offers.length} OFFERS TOTAL</span>
+                </div>
+              </div>
+
+              <div class="space-y-4">
+                ${window.state.offers.map(o => `
+                  <div class="border border-slate-300 bg-white p-6 space-y-4">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-3">
+                      <div>
+                        <span class="text-[10px] font-bold text-slate-400 block">${o.id} • ${o.date}</span>
+                        <h3 class="font-bold text-sm text-slate-900 uppercase">${o.cropTitle}</h3>
+                      </div>
+                      <div class="flex items-center space-x-2">
+                        <span class="text-xs font-bold px-2.5 py-0.5 border ${o.status === 'Accepted' ? 'bg-[#064E3B] text-emerald-300 border-emerald-700' : 'bg-amber-100 text-amber-950 border-amber-400'}">STATUS: ${o.status.toUpperCase()}</span>
+                        <button onclick="window.deleteOffer('${o.id}')" class="p-1 border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs" title="Remove Offer">🗑️</button>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3 border border-slate-200">
+                      <div><span class="text-[10px] text-slate-500 block uppercase">BUYER RETAILER</span><span class="font-bold text-slate-900">${o.buyerName}</span></div>
+                      <div><span class="text-[10px] text-slate-500 block uppercase">OFFERED RATE</span><span class="font-bold text-slate-900">₹${o.offeredPrice} / Q</span></div>
+                      <div><span class="text-[10px] text-slate-500 block uppercase">QUANTITY</span><span class="font-bold text-slate-900">${o.quantity} Quintals</span></div>
+                      <div><span class="text-[10px] text-slate-500 block uppercase">TOTAL ESCROW VALUE</span><span class="font-bold text-[#064E3B]">₹${o.totalValue.toLocaleString('en-IN')}</span></div>
+                    </div>
+
+                    ${o.status === 'Pending' ? `
+                      <div class="flex space-x-2 pt-2">
+                        <button onclick="window.declineOffer('${o.id}')" class="flex-1 border border-slate-300 bg-white py-2 text-xs font-bold text-red-700 uppercase">DECLINE</button>
+                        <button onclick="window.acceptOffer('${o.id}')" class="flex-1 bg-[#064E3B] text-emerald-300 border border-emerald-700 py-2 text-xs font-bold uppercase">ACCEPT & LOCK ESCROW</button>
+                        <button onclick="window.deleteOffer('${o.id}')" class="border border-red-300 bg-red-50 text-red-700 hover:bg-red-100 px-3 py-2 text-xs font-bold uppercase">🗑️ REMOVE</button>
+                      </div>
+                    ` : ''}
+
+                    ${o.status === 'Accepted' ? `
+                      <div class="flex justify-between items-center pt-2 text-xs">
+                        <span class="text-[#064E3B] font-bold">✓ ESCROW SMART CONTRACT INITIATED</span>
+                        <div class="flex space-x-2">
+                          <button onclick="window.setView('order-tracking')" class="bg-slate-900 text-white px-4 py-1.5 font-bold uppercase">VIEW LOGISTICS TELEMETRY →</button>
+                          <button onclick="window.deleteOffer('${o.id}')" class="border border-red-300 bg-red-50 text-red-700 px-2 py-1.5 font-bold uppercase">🗑️ REMOVE</button>
+                        </div>
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+
+        case 'order-tracking':
+          const order = window.state.activeOrder;
+          if (!order) return `<div class="p-8 text-center font-mono text-xs text-slate-500">NO ACTIVE CONTRACT</div>`;
+          return `
+            <div class="space-y-6 font-mono max-w-4xl mx-auto">
+              <div class="border border-slate-300 bg-white p-6 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-200 pb-4">
+                  <div>
+                    <span class="text-[10px] bg-slate-900 text-emerald-400 font-bold px-2 py-0.5 uppercase">CONTRACT: ${order.id}</span>
+                    <h1 class="text-base font-bold text-slate-900 uppercase mt-2">${order.cropTitle}</h1>
+                    <p class="text-xs text-slate-500">Seller: ${order.seller} • Buyer: ${order.buyer}</p>
+                  </div>
+                  <div class="text-right flex flex-col items-end">
+                    <span class="text-xl font-bold text-slate-900">${order.totalPrice}</span>
+                    <span class="text-[10px] text-[#064E3B] font-bold block uppercase mb-1">TOTAL VALUE IN ESCROW</span>
+                    <button onclick="window.deleteOrder('${order.id}')" class="bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 px-2.5 py-1 text-[10px] font-bold uppercase">🗑️ REMOVE / ARCHIVE CONTRACT</button>
+                  </div>
+                </div>
+
+                <div class="space-y-3">
+                  <h3 class="text-xs font-bold uppercase text-slate-900">SUPPLY CHAIN SMART CONTRACT MILESTONES</h3>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2">
+                    ${order.milestones.map((ms, idx) => `
+                      <div class="p-3 border text-xs flex flex-col justify-between h-28 ${ms.done ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-400 border-slate-200'}">
+                        <div class="flex justify-between items-center text-[10px]">
+                          <span class="font-bold">STEP 0${idx + 1}</span>
+                          <span>${ms.done ? '✓' : '⏳'}</span>
+                        </div>
+                        <div class="font-bold uppercase text-[11px] leading-tight">${ms.title}</div>
+                        <div class="text-[9px] text-slate-400">${ms.date}</div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="border border-slate-300 bg-white p-6 space-y-4">
+                  <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                    <h3 class="text-xs font-bold uppercase text-slate-900">🚚 LIVE GPS & CONTAINER TELEMETRY</h3>
+                    <span class="text-[10px] font-bold text-emerald-700 animate-pulse">● LIVE SENSOR PING</span>
+                  </div>
+                  <div class="bg-slate-900 h-52 border border-slate-700 relative p-4 flex flex-col justify-between text-white overflow-hidden">
+                    <div class="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:20px_20px] opacity-40"></div>
+                    <div class="z-10 text-[10px] text-emerald-400 font-mono space-y-0.5">
+                      <div>GPS RADAR POSITION: ${order.location}</div>
+                      <div>LAT/LON RADAR GRID: ${order.lat}° N, ${order.lon}° E</div>
+                    </div>
+                    <div class="z-10 bg-slate-800/90 border border-slate-600 p-2.5 text-[10px] space-y-1">
+                      <div class="font-bold text-slate-200">CARRIER: ${order.driver}</div>
+                      <div class="text-emerald-400 font-bold">COLD-CHAIN SENSOR: ${order.tempHumidity}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="border border-slate-300 bg-white p-6 space-y-4 flex flex-col justify-between">
+                  <div>
+                    <h3 class="text-xs font-bold uppercase text-slate-900 border-b border-slate-200 pb-3">🛡️ DIGITAL SMART CONTRACT RECEIPT</h3>
+                    <div class="space-y-2 mt-4 text-xs">
+                      <div class="flex justify-between py-1.5 border-b border-slate-100"><span class="text-slate-500">CONTRACT HASH:</span><span class="font-bold font-mono text-slate-900">${order.contractHash}</span></div>
+                      <div class="flex justify-between py-1.5 border-b border-slate-100"><span class="text-slate-500">ESCROW LOCK STATE:</span><span class="font-bold text-[#064E3B]">LOCKED (100% DISBURSEMENT READY)</span></div>
+                      <div class="flex justify-between py-1.5 border-b border-slate-100"><span class="text-slate-500">GATE INSPECTION:</span><span class="font-bold text-slate-900">VERIFIED SPECTRAL SCAN</span></div>
+                    </div>
+                  </div>
+                  <div class="p-3 bg-slate-100 border border-slate-300 text-[10px] text-slate-600 flex justify-between items-center">
+                    <span>Escrow releases upon digital receipt signature.</span>
+                    <button onclick="window.deleteOrder('${order.id}')" class="bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 px-2 py-1 font-bold text-[10px] uppercase">🗑️ REMOVE</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+
+        case 'insurance-map':
+          const currentLat = window.state.latitude || 30.9010;
+          const currentLon = window.state.longitude || 75.8573;
+          const geoData = window.getGeologicalProfile(currentLat, currentLon);
+          const activeClaimResult = window.state.activeClaimResult;
+
+          return `
+            <div class="space-y-6 font-mono">
+
+              <!-- Interactive Location & Coordinate Controls Bar -->
+              <div class="border border-slate-300 bg-white p-5 space-y-4">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                  <div>
+                    <div class="flex items-center space-x-2">
+                      <span class="w-2.5 h-2.5 bg-[#064E3B] inline-block"></span>
+                      <h1 class="text-base font-bold uppercase text-slate-900">AI INSURANCE CLAIMING, VERIFICATION & MOVING GIS MAP</h1>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">
+                      Explore the map and sample claim workflow. Map and weather indicators are simulated; this demo does not verify coverage or submit an insurance claim.
+                    </p>
+                  </div>
+
+                  <!-- Coordinate Inputs & Add Location Form -->
+                  <form onsubmit="event.preventDefault(); window.addSavedLocationFromGIS(event);" class="flex flex-wrap items-end gap-2 text-xs">
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase">LOCATION NAME / LABEL</label>
+                      <input id="gis-new-loc-name" type="text" placeholder="e.g. Plot #04 Sector" class="border border-slate-300 px-3 py-1.5 font-bold w-36 text-slate-900 focus:outline-none focus:border-slate-900 bg-white" />
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase">LATITUDE (°N)</label>
+                      <input id="gis-lat" type="number" step="0.0001" value="${currentLat}" class="border border-slate-300 px-3 py-1.5 font-bold w-24 text-slate-900 focus:outline-none focus:border-slate-900 bg-white" />
+                    </div>
+                    <div>
+                      <label class="block text-[10px] font-bold text-slate-500 uppercase">LONGITUDE (°E)</label>
+                      <input id="gis-lon" type="number" step="0.0001" value="${currentLon}" class="border border-slate-300 px-3 py-1.5 font-bold w-24 text-slate-900 focus:outline-none focus:border-slate-900 bg-white" />
+                    </div>
+                    <div class="flex items-end space-x-1">
+                      <button type="button" onclick="const lat=parseFloat(document.getElementById('gis-lat').value); const lon=parseFloat(document.getElementById('gis-lon').value); window.updateGeologicalDataAndMap(lat, lon);" class="bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 font-bold px-3 py-1.5 uppercase transition-all">
+                        PAN MAP 🎯
+                      </button>
+                      <button type="submit" id="btn-add-gis-location" class="bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 border border-emerald-700 font-bold px-3 py-1.5 uppercase transition-all">
+                        ➕ ADD TO MAP
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                <!-- Saved Farm Locations Matrix & Map Pins Bar -->
+                <div class="pt-2 border-t border-slate-200 space-y-2">
+                  <div class="flex justify-between items-center text-xs">
+                    <span class="text-[10px] font-bold text-slate-600 uppercase tracking-wider">📍 SAVED FARM LOCATIONS & INTERACTIVE MAP PINS:</span>
+                    <span class="text-[10px] font-bold text-emerald-800">${(window.state.savedLocations || []).length} LOCATIONS PINNED ON MAP</span>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    ${(window.state.savedLocations || []).map(loc => {
+                      const isCurrent = (currentLat === loc.lat && currentLon === loc.lon);
+                      return `
+                        <div class="flex items-center space-x-1.5 border ${isCurrent ? 'border-[#064E3B] bg-emerald-50' : 'border-slate-300 bg-white'} px-2.5 py-1 text-xs font-mono font-bold shadow-sm">
+                          <button type="button" id="btn-pan-loc-${loc.id}" onclick="window.updateGeologicalDataAndMap(${loc.lat}, ${loc.lon})" class="text-slate-900 hover:text-[#064E3B] flex items-center space-x-1">
+                            <span>📍 ${loc.name}</span>
+                            <span class="text-[10px] text-slate-500 font-normal">(${loc.lat.toFixed(2)}° N, ${loc.lon.toFixed(2)}° E)</span>
+                          </button>
+                          <button type="button" id="btn-remove-loc-${loc.id}" onclick="window.removeSavedLocation('${loc.id}', event)" class="p-1 text-red-700 hover:text-red-900 hover:bg-red-50 font-bold ml-1 border-l border-slate-200 pl-1.5" title="Remove Location Pin">
+                            🗑️
+                          </button>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+
+                <!-- Instant Regional Presets -->
+                <div class="flex flex-wrap items-center gap-2 text-xs pt-1">
+                  <span class="text-[10px] font-bold text-slate-500 uppercase mr-1">QUICK REGION PRESETS:</span>
+                  <button onclick="window.updateGeologicalDataAndMap(30.9010, 75.8573)" class="px-3 py-1 border text-xs font-bold ${currentLat === 30.9010 ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'}">
+                    🌾 Ludhiana, Punjab (30.9010° N, 75.8573° E)
+                  </button>
+                  <button onclick="window.updateGeologicalDataAndMap(29.6857, 76.9905)" class="px-3 py-1 border text-xs font-bold ${currentLat === 29.6857 ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'}">
+                    🌽 Karnal, Haryana (29.6857° N, 76.9905° E)
+                  </button>
+                  <button onclick="window.updateGeologicalDataAndMap(22.7196, 75.8577)" class="px-3 py-1 border text-xs font-bold ${currentLat === 22.7196 ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'}">
+                    🏢 Indore, MP (22.7196° N, 75.8577° E)
+                  </button>
+                  <button onclick="window.updateGeologicalDataAndMap(14.7954, 75.4026)" class="px-3 py-1 border text-xs font-bold ${currentLat === 14.7954 ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'}">
+                    🌽 Haveri, Karnataka (14.7954° N, 75.4026° E)
+                  </button>
+                  <button onclick="window.updateGeologicalDataAndMap(23.1765, 75.7885)" class="px-3 py-1 border text-xs font-bold ${currentLat === 23.1765 ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-800 border-slate-300 hover:bg-slate-100'}">
+                    🌾 Ujjain, MP (23.1765° N, 75.7885° E)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Main Split Grid: Left (Moving GIS Map + Geological Info) | Right (AI Claim Verification Engine) -->
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+                <!-- Left Column (GIS Map + Geological Telemetry Matrix) -->
+                <div class="lg:col-span-6 space-y-6">
+
+                  <!-- Interactive Moving Leaflet GIS Map Card -->
+                  <div class="border border-slate-300 bg-white p-5 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                      <div class="flex items-center space-x-2">
+                        <span class="w-2.5 h-2.5 bg-emerald-600 animate-pulse"></span>
+                        <h3 class="font-bold text-xs uppercase text-slate-900">MOVING SATELLITE GIS MAP & RADAR LAYER</h3>
+                      </div>
+                      <span class="text-[10px] bg-slate-900 text-emerald-400 font-bold px-2 py-0.5 border border-slate-700">
+                        LAT: ${currentLat}° N | LON: ${currentLon}° E
+                      </span>
+                    </div>
+
+                    <!-- Leaflet Moving Map HTML Container -->
+                    <div id="leaflet-moving-map" class="w-full h-80 border border-slate-300 relative z-10"></div>
+                    <div class="text-[10px] text-slate-500 flex justify-between items-center border-t border-slate-200 pt-2">
+                      <span>💡 Click anywhere on the map to automatically pan & calculate target soil telemetry.</span>
+                      <span class="font-bold text-emerald-800">● DEMO MAP OVERLAY · SIMULATED DATA</span>
+                    </div>
+                  </div>
+
+                  <!-- Geological & Soil Telemetry Card -->
+                  <div class="border border-slate-300 bg-white p-5 space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                      <h3 class="font-bold text-xs uppercase text-slate-900">🌱 GEOLOGICAL & TERRAIN TELEMETRY MATRIX</h3>
+                      <span class="text-[10px] font-bold bg-[#064E3B] text-emerald-300 px-2 py-0.5 border border-emerald-700 uppercase">
+                        ${geoData.riverBasin}
+                      </span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 text-xs">
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <span class="text-[10px] text-slate-500 uppercase block">SOIL TYPE & CLASSIFICATION</span>
+                        <span class="font-bold text-slate-900 leading-tight block mt-0.5">${geoData.soilType}</span>
+                        <span class="text-[9px] text-slate-500 block mt-1">Series: ${geoData.soilFamily}</span>
+                      </div>
+
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <span class="text-[10px] text-slate-500 uppercase block">ELEVATION & SLOPE</span>
+                        <span class="font-bold text-slate-900 leading-tight block mt-0.5">${geoData.elevation}</span>
+                        <span class="text-[9px] text-slate-500 block mt-1">Terrain: ${geoData.slope}</span>
+                      </div>
+
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <span class="text-[10px] text-slate-500 uppercase block">NUTRIENT PROFILE (N-P-K)</span>
+                        <span class="font-bold text-slate-900 text-[11px] block mt-0.5">N: ${geoData.nitrogen}</span>
+                        <span class="text-[10px] text-slate-700 font-bold block">P: ${geoData.phosphorus} • K: ${geoData.potassium}</span>
+                      </div>
+
+                      <div class="p-3 border border-slate-200 bg-slate-50">
+                        <span class="text-[10px] text-slate-500 uppercase block">SOIL PH LEVEL</span>
+                        <span class="font-bold text-emerald-800 text-sm block mt-0.5">${geoData.ph}</span>
+                        <span class="text-[9px] text-slate-500 block mt-0.5">Optimal Crop Range: 6.5 - 7.5</span>
+                      </div>
+
+                      <div class="p-3 border border-slate-200 bg-emerald-50/50 border-emerald-300">
+                        <span class="text-[10px] text-emerald-900 font-bold uppercase block">SENTINEL-2 NDVI CANOPY INDEX</span>
+                        <span class="font-bold text-emerald-900 text-lg block mt-0.5">${geoData.ndvi}</span>
+                        <span class="text-[9px] text-emerald-700 block font-bold">● Healthy Vegetative Density</span>
+                      </div>
+
+                      <div class="p-3 border border-slate-200 bg-blue-50/50 border-blue-300">
+                        <span class="text-[10px] text-blue-900 font-bold uppercase block">SAR WATERLOGGING INDEX</span>
+                        <span class="font-bold text-blue-900 text-lg block mt-0.5">${geoData.sarWater}</span>
+                        <span class="text-[9px] text-blue-700 block font-bold">● Radar Surface Moisture</span>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- Right Column (AI Insurance Claim Verification & PMFBY Recommendation Engine) -->
+                <div class="lg:col-span-6 space-y-6">
+
+                  <!-- Claim Form & Audit Trigger Card -->
+                  <div class="border border-slate-300 bg-white p-6 space-y-4">
+                    <div class="border-b border-slate-200 pb-3 flex justify-between items-center">
+                      <div>
+                        <span class="text-[10px] bg-slate-900 text-white px-2 py-0.5 font-bold uppercase">PMFBY ENGINE</span>
+                        <h3 class="font-bold text-sm text-slate-900 uppercase mt-1">FILE & AUDIT CROP INSURANCE CLAIM</h3>
+                      </div>
+                      <span class="text-xs text-emerald-800 font-bold">${apiConfigured ? 'BACKEND API CONFIGURED' : 'SIMULATED DEMO REVIEW'}</span>
+                    </div>
+
+                    <form onsubmit="window.verifyClaimWithAI(event)" class="space-y-4 text-xs">
+                      <div class="grid grid-cols-2 gap-3">
+                        <div>
+                          <label class="block font-bold text-slate-700 uppercase mb-1">Insured Crop</label>
+                          <select id="gis-crop" class="w-full border border-slate-300 p-2 font-bold bg-white focus:outline-none focus:border-slate-900">
+                            <option value="Grade A+ Sharbati Wheat">Grade A+ Sharbati Wheat</option>
+                            <option value="Aromatic Basmati Rice 1121">Aromatic Basmati Rice 1121</option>
+                            <option value="Organic Hybrid Yellow Corn">Organic Hybrid Yellow Corn</option>
+                            <option value="Organic Desi Chana (Chickpeas)">Organic Desi Chana (Chickpeas)</option>
+                            <option value="High-Oleic Soybeans">High-Oleic Soybeans</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label class="block font-bold text-slate-700 uppercase mb-1">Claimed Cause / Peril</label>
+                          <select id="gis-cause" class="w-full border border-slate-300 p-2 font-bold bg-white focus:outline-none focus:border-slate-900">
+                            <option value="Flood / Excess Rain">Flood / Excess Rain</option>
+                            <option value="Unseasonal Rainfall">Unseasonal Rainfall</option>
+                            <option value="Severe Drought">Severe Drought</option>
+                            <option value="Pest & Stem Borer Damage">Pest & Stem Borer Damage</option>
+                            <option value="Hailstorm Damage">Hailstorm Damage</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div class="grid grid-cols-3 gap-3">
+                        <div>
+                          <label class="block font-bold text-slate-700 uppercase mb-1">Date of Loss</label>
+                          <input id="gis-date" type="date" value="2026-03-28" class="w-full border border-slate-300 p-2 font-bold" />
+                        </div>
+
+                        <div>
+                          <label class="block font-bold text-slate-700 uppercase mb-1">Cultivated Acreage</label>
+                          <input id="gis-acreage" type="number" step="0.5" value="5.0" class="w-full border border-slate-300 p-2 font-bold" />
+                        </div>
+
+                        <div>
+                          <label class="block font-bold text-slate-700 uppercase mb-1">Sum Insured (/Acre)</label>
+                          <input id="gis-rate" type="number" value="45000" class="w-full border border-slate-300 p-2 font-bold" />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-1">PMFBY Policy ID / Khasra Survey No.</label>
+                        <input id="gis-policy" type="text" value="PMFBY-2026-PB-88912" class="w-full border border-slate-300 p-2 font-bold uppercase" />
+                      </div>
+
+                      <button type="submit" ${window.state.isAnalyzingClaim ? 'disabled' : ''} class="w-full bg-[#064E3B] hover:bg-emerald-900 text-emerald-300 border border-emerald-700 p-3 font-bold text-xs uppercase tracking-wider transition-all">
+                        ${window.state.isAnalyzingClaim ? '⚡ RUNNING DEMONSTRATION REVIEW...' : '⚡ RUN DEMO CLAIM REVIEW →'}
+                      </button>
+                    </form>
+                  </div>
+
+                  <!-- AI Audit & Recommendation Output Card -->
+                  ${activeClaimResult ? `
+                    <div class="border-2 border-emerald-800 bg-white p-6 space-y-4 shadow-sm">
+                      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <div class="flex items-center space-x-2">
+                          <span class="w-3 h-3 bg-emerald-600 inline-block"></span>
+                          <h3 class="font-bold text-sm uppercase text-slate-900">DEMO CLAIM REVIEW · NOT AN OFFICIAL DECISION</h3>
+                        </div>
+                        <span class="bg-[#064E3B] text-emerald-300 text-xs font-bold px-3 py-1 border border-emerald-700 uppercase">
+                          MATCH: ${activeClaimResult.score}
+                        </span>
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-4 border border-slate-200">
+                        <div>
+                          <span class="text-[10px] text-slate-500 uppercase block">ILLUSTRATIVE PAYOUT ESTIMATE</span>
+                          <span class="text-xl font-bold text-[#064E3B]">₹${activeClaimResult.payout.toLocaleString('en-IN')}</span>
+                          <span class="text-[10px] text-slate-500 block">(${activeClaimResult.acreage} Acres × ₹${activeClaimResult.ratePerAcre}/Acre)</span>
+                        </div>
+
+                        <div>
+                          <span class="text-[10px] text-slate-500 uppercase block">72-HR INTIMATION COMPLIANCE</span>
+                          <span class="font-bold text-emerald-800 text-xs block mt-1">✓ ${activeClaimResult.noticeWindow}</span>
+                          <span class="text-[10px] text-slate-500 block">Demo value; confirm applicable notice rules</span>
+                        </div>
+                      </div>
+
+                      <div class="space-y-2 text-xs">
+                        <div class="p-3 border border-slate-200 bg-slate-50 space-y-1">
+                          <span class="font-bold text-slate-900 block uppercase text-[10px]">🛰️ SATELLITE RADAR LOSS EVIDENCE AUDIT:</span>
+                          <p class="text-slate-700 text-[11px] leading-relaxed">${activeClaimResult.sarEvidence}</p>
+                          <p class="text-slate-700 text-[11px] leading-relaxed">${activeClaimResult.precipAnomaly}</p>
+                        </div>
+
+                        <div class="p-3 border border-emerald-800 bg-emerald-950 text-emerald-200 space-y-1">
+                          <span class="font-bold text-emerald-400 block uppercase text-[10px]">DEMONSTRATION TEXT · NOT OFFICIAL ADVICE:</span>
+                          <p class="text-emerald-100 font-bold text-xs">${activeClaimResult.clause}</p>
+                          <p class="text-emerald-200 text-[11px] leading-relaxed mt-1">${activeClaimResult.recommendation}</p>
+                        </div>
+
+                        ${activeClaimResult.citations ? `
+                          <div class="pt-2 text-[10px] text-slate-500">
+                            <span class="font-bold text-slate-700 block uppercase mb-1">RAG POLICY CITATIONS:</span>
+                            <div class="flex flex-wrap gap-1">
+                              ${activeClaimResult.citations.map(c => `<span class="bg-slate-100 border border-slate-300 px-2 py-0.5 text-slate-800 font-bold">📄 ${c}</span>`).join('')}
+                            </div>
+                          </div>
+                        ` : ''}
+                      </div>
+
+                      <button onclick="window.submitClaimToNCIP()" class="w-full bg-slate-900 hover:bg-slate-800 text-white border border-slate-900 p-3 font-bold text-xs uppercase tracking-wider">
+                        📄 SAVE DEMO CLAIM RECORD →
+                      </button>
+                    </div>
+                  ` : `
+                    <div class="border border-dashed border-slate-400 bg-slate-50 p-8 text-center space-y-2">
+                      <div class="text-2xl">🛰️</div>
+                      <h4 class="font-bold text-xs text-slate-700 uppercase">NO CLAIM AUDIT EXECUTED YET</h4>
+                      <p class="text-[11px] text-slate-500 max-w-sm mx-auto">
+                        Fill in the form and run a <b>simulated demo review</b>. Sample map and weather values do not verify coverage or submit a claim.
+                      </p>
+                    </div>
+                  `}
+
+                </div>
+              </div>
+
+              <!-- Registered PMFBY Claims Ledger Table -->
+              <div class="border border-slate-300 bg-white p-6 space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+                  <div>
+                    <h3 class="font-bold text-sm uppercase text-slate-900">PMFBY CROP INSURANCE CLAIMS LEDGER</h3>
+                    <p class="text-xs text-slate-500">Live satellite audit logs, claim match scores & payout status</p>
+                  </div>
+                  <div class="flex items-center space-x-2">
+                    <button onclick="document.getElementById('gis-crop')?.scrollIntoView({behavior:'smooth'})" class="bg-[#064E3B] text-emerald-300 text-xs font-bold px-3 py-1 uppercase border border-emerald-700">+ FILE NEW CLAIM</button>
+                    <span class="bg-slate-900 text-white text-xs font-bold px-3 py-1 uppercase">
+                      ${window.state.insuranceCases.length} CLAIMS RECORDED
+                    </span>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="border-b border-slate-300 bg-slate-100 text-slate-700 uppercase">
+                        <th class="p-3 border-r border-slate-200">Claim ID</th>
+                        <th class="p-3 border-r border-slate-200">Policy & Khasra No</th>
+                        <th class="p-3 border-r border-slate-200">Claimant</th>
+                        <th class="p-3 border-r border-slate-200">Peril / Cause</th>
+                        <th class="p-3 border-r border-slate-200">Satellite Match</th>
+                        <th class="p-3 border-r border-slate-200">Calculated Payout</th>
+                        <th class="p-3 border-r border-slate-200">72-Hr Notice</th>
+                        <th class="p-3 border-r border-slate-200">Status</th>
+                        <th class="p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                      ${window.state.insuranceCases.map(c => `
+                        <tr class="hover:bg-slate-50">
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-900">${c.id}</td>
+                          <td class="p-3 border-r border-slate-200 font-mono text-slate-700">${c.policyId}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-slate-800">${c.farmerName}</td>
+                          <td class="p-3 border-r border-slate-200">${c.claimedCause}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-emerald-800">${c.claimScore}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-[#064E3B]">₹${c.payoutAmount.toLocaleString('en-IN')}</td>
+                          <td class="p-3 border-r border-slate-200 font-bold text-emerald-700">${c.noticeCompliant}</td>
+                          <td class="p-3 border-r border-slate-200">
+                            <span class="bg-[#064E3B] text-emerald-300 font-bold px-2 py-0.5 text-[10px] uppercase border border-emerald-700">
+                              ${c.status}
+                            </span>
+                          </td>
+                          <td class="p-3">
+                            <button id="btn-remove-claim-${c.id}" onclick="window.deleteInsuranceClaim('${c.id}', event)" class="bg-red-50 text-red-700 border border-red-300 hover:bg-red-100 px-2 py-1 font-bold text-[10px] uppercase">🗑️ REMOVE</button>
+                          </td>
+                        </tr>
+                      `).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          `;
+      }
+    }
+
+    window.renderMainViewOnly = function() {
+      const mainEl = document.getElementById('main-view');
+      if (mainEl) mainEl.innerHTML = buildMainViewHTML();
+      if (window.state.currentView === 'insurance-map') {
+        setTimeout(() => {
+          window.initOrUpdateLeafletMap(window.state.latitude || 30.9010, window.state.longitude || 75.8573);
+        }, 150);
+      }
+    };
+
+    window.renderApp = function() {
+      const sidebarEl = document.getElementById('sidebar-container');
+      const topNavEl = document.getElementById('top-nav');
+      if (sidebarEl) sidebarEl.innerHTML = buildSidebarHTML();
+      if (topNavEl) topNavEl.innerHTML = buildTopNavHTML();
+      window.renderMainViewOnly();
+    };
+
+    // Initial Launch Execution & API Sync
+    document.addEventListener('DOMContentLoaded', function() {
+      window.renderApp();
+      syncDataFromBackend();
+    });
+
+    window.renderApp();
+    syncDataFromBackend();
+  </script>
 </body>
 </html>
-
