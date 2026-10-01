@@ -1052,9 +1052,31 @@
       const password = document.getElementById('login-password')?.value;
       if (!email || !password) { window.state.loginError = 'Enter an email address and password to create your account.'; window.renderMainViewOnly(); return; }
       const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
-      if (error) { window.state.loginError = error.message; window.renderMainViewOnly(); return; }
+      if (error) {
+        const mayNeedConfirmation = /database error saving new user|already registered|user already registered/i.test(error.message || '');
+        window.state.canResendSignupConfirmation = mayNeedConfirmation;
+        window.state.loginError = mayNeedConfirmation
+          ? 'This email may already have an account awaiting confirmation. Resend the confirmation email below, then sign in.'
+          : error.message;
+        window.renderMainViewOnly();
+        return;
+      }
+      window.state.canResendSignupConfirmation = false;
       if (data.session) await enterSupabaseSession(data.session.user);
       else { window.state.loginError = 'Account created. Check your email to confirm it, then sign in.'; window.renderMainViewOnly(); }
+    };
+    window.handleSupabaseResendSignupConfirmation = async function(e) {
+      if (e) e.preventDefault();
+      const email = document.getElementById('login-username')?.value.trim();
+      if (!email) {
+        window.state.loginError = 'Enter the email address you used to create the account, then resend the confirmation email.';
+        window.renderMainViewOnly();
+        return;
+      }
+      const { error } = await supabaseClient.auth.resend({ type: 'signup', email, options: { emailRedirectTo: window.location.origin } });
+      window.state.loginError = error ? error.message : 'Confirmation email sent. Check your inbox and spam folder, then sign in.';
+      window.state.canResendSignupConfirmation = false;
+      window.renderMainViewOnly();
     };
     window.handleLoginSubmit = async function(e) {
       if (e) e.preventDefault();
@@ -1627,8 +1649,11 @@
               ${window.state.loginError ? `
                 <div class="p-3 border border-red-500 bg-red-50 text-red-800 font-bold text-xs uppercase flex items-center justify-between">
                   <span>⚠️ ${window.state.loginError}</span>
-                  <button onclick="window.state.loginError=''; window.renderMainViewOnly();" class="text-red-900 font-bold">✕</button>
+                  <button onclick="window.state.loginError=''; window.state.canResendSignupConfirmation=false; window.renderMainViewOnly();" class="text-red-900 font-bold">✕</button>
                 </div>
+              ` : ''}
+              ${window.state.canResendSignupConfirmation ? `
+                <button type="button" onclick="window.handleSupabaseResendSignupConfirmation(event)" class="w-full border border-amber-500 bg-amber-50 p-3 font-bold text-xs uppercase text-amber-900">Resend confirmation email</button>
               ` : ''}
 
               <!-- Credential Login Form -->
