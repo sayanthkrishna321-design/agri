@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # -------------------------------------------------------------------------
+  # MySQL 8 — session memory database (required for submission)
+  # -------------------------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: agrisentinel_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: agrisentinel
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-agrisentinel_mysql_pw}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root",
+             "-p${DB_PASSWORD:-agrisentinel_mysql_pw}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # -------------------------------------------------------------------------
+  # Django DRF backend — waits for MySQL health-check before starting
+  # -------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agrisentinel_backend
+    restart: unless-stopped
+    # Run migrations automatically, then start gunicorn (or runserver for demo)
+    command: >
+      sh -c "
+        python agrisentinel/agrisentinel/manage.py migrate --noinput &&
+        python agrisentinel/agrisentinel/manage.py runserver 0.0.0.0:8000
+      "
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Override to point at the MySQL container — must match service name 'db'
+      - DB_ENGINE=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-agrisentinel}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-agrisentinel_mysql_pw}
+      # Safety for production demo
+      - DEBUG=False
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # -------------------------------------------------------------------------
+  # Vite / React frontend
+  # -------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: agrisentinel_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://backend:8000/api
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:

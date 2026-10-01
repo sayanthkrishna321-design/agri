@@ -1,0 +1,80 @@
+graph TD
+    subgraph UI["🖥 User Interface (Vite/React :5173)"]
+        FE["Farmer / Retailer Browser"]
+    end
+
+    subgraph API["⚙ Django REST Framework API (:8000)"]
+        EP1["/api/agent-query"]
+        EP2["/api/rag-ask"]
+        EP3["/api/weather"]
+        EP4["/api/health"]
+        EP5["/api/eligibility-check"]
+    end
+
+    subgraph AGENT["🤖 AgriSentinel Agent Orchestrator"]
+        IC["1. Intent Classification"]
+        MF["2. Missing-Field Detection"]
+        TE["3. Tool Execution"]
+        RR["4. RAG Retrieval"]
+        PV["5. Pydantic Validation (AgentStructuredOutput)"]
+        GN["6. Gemini 2.5 Flash (narrative only)"]
+    end
+
+    subgraph TOOLS["🔧 Real Tools"]
+        WT["Open-Meteo Weather Tool\n(open-meteo.com — public API)"]
+        IE["Deterministic Insurance Rule Engine\n(PMFBY rules — Python code)"]
+    end
+
+    subgraph RAG["📄 RAG System"]
+        FAISS["FAISS Vector Index"]
+        CORPUS["PDF Corpus\n(PMFBY guidelines, scheme docs)"]
+        EMB["Sentence Embeddings\n(multilingual-e5-base)"]
+    end
+
+    subgraph DB["🗄 MySQL 8 Database"]
+        CS["ChatSession"]
+        CM["ChatMessage (tokens, tool_used)"]
+        MODELS["Profile / Farm / Crop / InsuranceCase"]
+    end
+
+    subgraph OBS["📊 Observability"]
+        LOGS["Structured Logs\nrequest_id · session_id\nlatency_ms · tokens · cost_usd"]
+        CID["Correlation ID Middleware\n(X-Request-ID header)"]
+    end
+
+    FE -->|"HTTP POST query"| EP1
+    FE -->|"HTTP POST question"| EP2
+    FE -->|"HTTP GET lat/lon"| EP3
+
+    EP1 --> IC
+    EP2 --> RR
+    EP3 --> WT
+
+    IC --> MF
+    MF --> TE
+    TE -->|"latitude, longitude, dates"| WT
+    TE -->|"crop, cause, weather_data"| IE
+    WT -->|"WeatherResponse (Pydantic)"| TE
+    IE -->|"InsuranceRuleResponse (Pydantic)"| TE
+    TE --> RR
+    RR -->|"query embedding"| FAISS
+    CORPUS --> EMB --> FAISS
+    FAISS -->|"RetrievedChunk list + citations"| RR
+    RR --> PV
+    PV --> GN
+    GN -->|"AgentStructuredOutput (Pydantic)"| EP1
+
+    EP1 -->|"persist session + messages"| CS
+    CS --> CM
+
+    EP1 -->|"JSON response + request_id"| FE
+    CID -.->|"inject request_id"| LOGS
+    EP1 -.->|"INFO log per call"| LOGS
+
+    style UI fill:#e8f5e9,stroke:#1a4731
+    style API fill:#e3f2fd,stroke:#1e40af
+    style AGENT fill:#fff3e0,stroke:#f59e0b
+    style TOOLS fill:#fff8e1,stroke:#d97706
+    style RAG fill:#f3e8ff,stroke:#7c3aed
+    style DB fill:#fce4ec,stroke:#c62828
+    style OBS fill:#f1f8e9,stroke:#558b2f
