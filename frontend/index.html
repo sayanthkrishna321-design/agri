@@ -83,17 +83,31 @@
 
   <!-- Interactive Application Core Script -->
   <script>
+    window.AGRI_SUPABASE_URL = "%VITE_SUPABASE_URL%";
+    window.AGRI_SUPABASE_PUBLISHABLE_KEY = "%VITE_SUPABASE_PUBLISHABLE_KEY%";
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
     // Set AGRISENTINEL_API_BASE to a public API origin plus /api to enable live data.
     // In local Vite development, /api is proxied to Django. On Vercel without a backend,
     // the app uses its built-in demo data and keeps all browser-side interactions available.
+    const supabaseUrl = window.AGRI_SUPABASE_URL || "";
+    const supabaseKey = window.AGRI_SUPABASE_PUBLISHABLE_KEY || "";
+    const supabaseConfigured = Boolean(window.supabase?.createClient && supabaseUrl.startsWith("https://") && supabaseKey && !supabaseUrl.includes("%VITE_") && !supabaseKey.includes("%VITE_"));
+    const supabaseClient = supabaseConfigured ? window.supabase.createClient(supabaseUrl, supabaseKey, {
+      auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true }
+    }) : null;
+    let currentSupabaseUserId = null;
+    let isHydratingSupabaseState = false;
+    let supabaseSaveTimer = null;
     const apiConfigured = Boolean(window.AGRISENTINEL_API_BASE) || ["localhost", "127.0.0.1"].includes(window.location.hostname);
     const API_BASE = apiConfigured ? (window.AGRISENTINEL_API_BASE || "/api").replace(/\/$/, "") : null;
     const apiFetch = (path, options) => API_BASE
       ? fetch(`${API_BASE}${path}`, options)
       : Promise.reject(new Error("No public API configured; using demo data."));
     const apiStatusIndicator = document.getElementById("api-status-indicator");
-    if (apiStatusIndicator && apiConfigured) {
-      apiStatusIndicator.textContent = "● BACKEND API BASE CONFIGURED";
+    if (apiStatusIndicator && supabaseConfigured) {
+      apiStatusIndicator.textContent = "● SUPABASE AUTH & DATA READY";
       apiStatusIndicator.className = "text-emerald-800 font-bold";
     }
 
@@ -987,6 +1001,61 @@
     }, 4000);
 
     // Authentication & Role Routing Logic
+    const USER_STATE_KEYS = ['crops', 'offers', 'orders', 'insuranceCases', 'savedLocations', 'chatMessages', 'latitude', 'longitude', 'activeClaimResult'];
+    function getUserStateSnapshot() {
+      const snapshot = {};
+      USER_STATE_KEYS.forEach(key => { if (window.state[key] !== undefined) snapshot[key] = window.state[key]; });
+      // Do not persist embedded image payloads or other large data URLs.
+      if (Array.isArray(snapshot.crops)) snapshot.crops = snapshot.crops.map(crop => ({ ...crop, image: typeof crop.image === 'string' && crop.image.startsWith('data:') ? '' : crop.image }));
+      return snapshot;
+    }
+    function scheduleSupabaseStateSave() {
+      if (!supabaseClient || !currentSupabaseUserId || isHydratingSupabaseState) return;
+      clearTimeout(supabaseSaveTimer);
+      supabaseSaveTimer = setTimeout(async () => {
+        const { error } = await supabaseClient.from('user_app_state').upsert({ user_id: currentSupabaseUserId, state: getUserStateSnapshot(), updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+        if (error) console.error('Could not save account data to Supabase:', error.message);
+      }, 700);
+    }
+    async function loadSupabaseUserState(userId) {
+      currentSupabaseUserId = userId;
+      isHydratingSupabaseState = true;
+      // New accounts start with private, empty collections instead of shared demo records.
+      window.state.crops = [];
+      window.state.offers = [];
+      window.state.orders = [];
+      window.state.insuranceCases = [];
+      window.state.savedLocations = [];
+      window.state.chatMessages = [];
+      const { data, error } = await supabaseClient.from('user_app_state').select('state').eq('user_id', userId).maybeSingle();
+      if (error) {
+        console.error('Could not load account data from Supabase:', error.message);
+        window.state.loginError = 'Your account signed in, but its data could not be loaded. Check the Supabase table setup.';
+      } else if (data?.state && typeof data.state === 'object') {
+        USER_STATE_KEYS.forEach(key => { if (Object.prototype.hasOwnProperty.call(data.state, key)) window.state[key] = data.state[key]; });
+      }
+      isHydratingSupabaseState = false;
+      scheduleSupabaseStateSave();
+    }
+    function enterSupabaseSession(user) {
+      window.state.isLoggedIn = true;
+      window.state.currentUser = user.email || user.id;
+      window.state.displayName = user.user_metadata?.full_name || user.email || 'Farmer';
+      window.state.role = 'farmer';
+      window.state.currentView = 'farmer-dash';
+      return loadSupabaseUserState(user.id).then(() => window.renderApp());
+    }
+    window.handleSupabaseSignup = async function(e) {
+      if (e) e.preventDefault();
+      if (!supabaseClient) return;
+      const email = document.getElementById('login-username')?.value.trim();
+      const password = document.getElementById('login-password')?.value;
+      if (!email || !password) { window.state.loginError = 'Enter an email address and password to create your account.'; window.renderMainViewOnly(); return; }
+      const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
+      if (error) { window.state.loginError = error.message; window.renderMainViewOnly(); return; }
+      if (data.session) await enterSupabaseSession(data.session.user);
+      else { window.state.loginError = 'Account created. Check your email to confirm it, then sign in.'; window.renderMainViewOnly(); }
+    };
     window.handleLoginSubmit = async function(e) {
       if (e) e.preventDefault();
       const usernameInput = document.getElementById('login-username')?.value.trim();
@@ -999,6 +1068,13 @@
       }
 
       window.state.loginError = "";
+
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email: usernameInput, password: passwordInput });
+        if (error) { window.state.loginError = error.message; window.renderMainViewOnly(); return; }
+        await enterSupabaseSession(data.user);
+        return;
+      }
 
       // Capture custom Location Login input coordinates
       const latVal = Number(document.getElementById('login-lat')?.value);
@@ -1091,7 +1167,12 @@
       window.handleLoginSubmit();
     };
 
-    window.handleLogout = function() {
+    window.handleLogout = async function() {
+      if (supabaseClient) {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) console.error('Could not sign out from Supabase:', error.message);
+      }
+      currentSupabaseUserId = null;
       window.state.isLoggedIn = false;
       window.state.currentUser = '';
       window.state.role = '';
@@ -1553,8 +1634,8 @@
               <!-- Credential Login Form -->
               <form onsubmit="window.handleLoginSubmit(event)" class="space-y-4 text-xs">
                 <div>
-                  <label class="block font-bold text-slate-700 uppercase mb-1">Username / Identifier</label>
-                  <input id="login-username" type="text" required placeholder="e.g. farmer, retailer, admin" class="w-full border border-slate-300 p-3 font-bold focus:outline-none focus:border-slate-900" />
+                  <label class="block font-bold text-slate-700 uppercase mb-1">${supabaseConfigured ? 'Email address' : 'Username / Identifier'}</label>
+                  <input id="login-username" type="${supabaseConfigured ? 'email' : 'text'}" required placeholder="${supabaseConfigured ? 'you@example.com' : 'e.g. farmer, retailer, admin'}" class="w-full border border-slate-300 p-3 font-bold focus:outline-none focus:border-slate-900" />
                 </div>
                 <div>
                   <label class="block font-bold text-slate-700 uppercase mb-1">Password</label>
@@ -1565,6 +1646,7 @@
                   AUTHENTICATE & ENTER DASHBOARD →
                 </button>
               </form>
+              ${supabaseConfigured ? `<button type="button" onclick="window.handleSupabaseSignup(event)" class="w-full border border-slate-400 bg-white p-3 font-bold text-xs uppercase text-slate-700">Create farmer account</button><p class="text-[10px] text-slate-500">Accounts and app records are private to your signed-in account.</p>` : ''}
 
             </div>
           `;
@@ -2993,6 +3075,7 @@
           window.initOrUpdateLeafletMap(window.state.latitude || 30.9010, window.state.longitude || 75.8573);
         }, 150);
       }
+      scheduleSupabaseStateSave();
     };
 
     window.renderApp = function() {
@@ -3007,6 +3090,14 @@
     document.addEventListener('DOMContentLoaded', function() {
       window.renderApp();
       syncDataFromBackend();
+      if (supabaseClient) supabaseClient.auth.getSession().then(({ data, error }) => {
+        if (error) { console.error('Could not restore Supabase session:', error.message); return; }
+        if (data.session?.user) enterSupabaseSession(data.session.user);
+      });
+      if (supabaseClient) supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') { currentSupabaseUserId = null; window.state.isLoggedIn = false; window.state.currentView = 'login'; window.renderApp(); }
+        else if (event === 'SIGNED_IN' && session?.user && currentSupabaseUserId !== session.user.id) enterSupabaseSession(session.user);
+      });
     });
 
     window.renderApp();
@@ -3014,3 +3105,4 @@
   </script>
 </body>
 </html>
+
