@@ -205,11 +205,16 @@
       }
     ];
 
+    const getSavedLoginRole = () => {
+      try { return window.localStorage.getItem('agrisentinel-login-role') === 'retailer' ? 'retailer' : 'farmer'; }
+      catch (_) { return 'farmer'; }
+    };
+
     window.state = {
       isLoggedIn: false,
       currentUser: '',
       role: '',
-      selectedLoginRole: 'farmer',
+      selectedLoginRole: getSavedLoginRole(),
       displayName: '',
       userLocation: '',
       currentView: 'login',
@@ -1052,6 +1057,7 @@
       const email = document.getElementById('login-username')?.value || '';
       const password = document.getElementById('login-password')?.value || '';
       window.state.selectedLoginRole = role;
+      try { window.localStorage.setItem('agrisentinel-login-role', role); } catch (_) {}
       window.renderMainViewOnly();
       const emailInput = document.getElementById('login-username');
       const passwordInput = document.getElementById('login-password');
