@@ -1093,7 +1093,15 @@
 
       if (supabaseClient) {
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email: usernameInput, password: passwordInput });
-        if (error) { window.state.loginError = error.message; window.renderMainViewOnly(); return; }
+        if (error) {
+          const mayNeedConfirmation = /email not confirmed|invalid login credentials/i.test(error.message || '');
+          window.state.canResendSignupConfirmation = mayNeedConfirmation;
+          window.state.loginError = mayNeedConfirmation
+            ? 'Sign-in failed. This account may need email confirmation, or the password may be incorrect. Resend confirmation below if needed.'
+            : error.message;
+          window.renderMainViewOnly();
+          return;
+        }
         await enterSupabaseSession(data.user);
         return;
       }
