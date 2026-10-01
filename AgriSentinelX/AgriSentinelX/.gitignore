@@ -1,0 +1,37 @@
+# Environment Variables (Contains sensitive API keys)
+.env
+.env.local
+.env.*.local
+
+# Python Cache & Bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# RAG Vector Indexes & Embeddings Cache
+rag/embeddings/*.faiss
+rag/embeddings/*.index
+rag/embeddings/*.json
+!rag/embeddings/README.md
+
+# IDE & Code Editor Settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
