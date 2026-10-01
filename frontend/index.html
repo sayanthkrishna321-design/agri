@@ -209,6 +209,7 @@
       isLoggedIn: false,
       currentUser: '',
       role: '',
+      selectedLoginRole: 'farmer',
       displayName: '',
       userLocation: '',
       currentView: 'login',
@@ -1037,51 +1038,48 @@
       isHydratingSupabaseState = false;
       scheduleSupabaseStateSave();
     }
-    function enterSupabaseSession(user) {
+    function enterSupabaseSession(user, selectedRole) {
+      const role = ['farmer', 'retailer'].includes(selectedRole) ? selectedRole : 'farmer';
       window.state.isLoggedIn = true;
       window.state.currentUser = user.email || user.id;
-      window.state.displayName = user.user_metadata?.full_name || user.email || 'Farmer';
-      window.state.role = 'farmer';
-      window.state.currentView = 'farmer-dash';
+      window.state.displayName = user.user_metadata?.full_name || user.email || (role === 'retailer' ? 'Retailer' : 'Farmer');
+      window.state.role = role;
+      window.state.currentView = role === 'retailer' ? 'retailer-dash' : 'farmer-dash';
       return loadSupabaseUserState(user.id).then(() => window.renderApp());
     }
+    window.setLoginRole = function(role) {
+      if (!['farmer', 'retailer'].includes(role)) return;
+      const email = document.getElementById('login-username')?.value || '';
+      const password = document.getElementById('login-password')?.value || '';
+      window.state.selectedLoginRole = role;
+      window.renderMainViewOnly();
+      const emailInput = document.getElementById('login-username');
+      const passwordInput = document.getElementById('login-password');
+      if (emailInput) emailInput.value = email;
+      if (passwordInput) passwordInput.value = password;
+    };
     window.handleSupabaseSignup = async function(e) {
       if (e) e.preventDefault();
       if (!supabaseClient) return;
       const email = document.getElementById('login-username')?.value.trim();
       const password = document.getElementById('login-password')?.value;
       if (!email || !password) { window.state.loginError = 'Enter an email address and password to create your account.'; window.renderMainViewOnly(); return; }
-      const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
+      const role = ['farmer', 'retailer'].includes(window.state.selectedLoginRole) ? window.state.selectedLoginRole : 'farmer';
+      const { data, error } = await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin, data: { role } } });
       if (error) {
-        const mayNeedConfirmation = /database error saving new user|already registered|user already registered/i.test(error.message || '');
-        window.state.canResendSignupConfirmation = mayNeedConfirmation;
-        window.state.loginError = mayNeedConfirmation
-          ? 'This email may already have an account awaiting confirmation. Resend the confirmation email below, then sign in.'
+        window.state.loginError = /already registered|user already registered/i.test(error.message || '')
+          ? 'This email already has an account. Sign in with it instead.'
           : error.message;
         window.renderMainViewOnly();
         return;
       }
-      window.state.canResendSignupConfirmation = false;
-      if (data.session) await enterSupabaseSession(data.session.user);
-      else { window.state.loginError = 'Account created. Check your email to confirm it, then sign in.'; window.renderMainViewOnly(); }
-    };
-    window.handleSupabaseResendSignupConfirmation = async function(e) {
-      if (e) e.preventDefault();
-      const email = document.getElementById('login-username')?.value.trim();
-      if (!email) {
-        window.state.loginError = 'Enter the email address you used to create the account, then resend the confirmation email.';
-        window.renderMainViewOnly();
-        return;
-      }
-      const { error } = await supabaseClient.auth.resend({ type: 'signup', email, options: { emailRedirectTo: window.location.origin } });
-      window.state.loginError = error ? error.message : 'Confirmation email sent. Check your inbox and spam folder, then sign in.';
-      window.state.canResendSignupConfirmation = false;
-      window.renderMainViewOnly();
+      if (data.session) await enterSupabaseSession(data.session.user, role);
+      else { window.state.loginError = 'Account created. Sign in with your email and password.'; window.renderMainViewOnly(); }
     };
     window.handleLoginSubmit = async function(e) {
       if (e) e.preventDefault();
       const usernameInput = document.getElementById('login-username')?.value.trim();
-      const passwordInput = document.getElementById('login-password')?.value.trim();
+      const passwordInput = document.getElementById('login-password')?.value;
 
       if (!usernameInput || !passwordInput) {
         window.state.loginError = "Please fill in both username and password fields.";
@@ -1092,17 +1090,16 @@
       window.state.loginError = "";
 
       if (supabaseClient) {
+        const role = ['farmer', 'retailer'].includes(window.state.selectedLoginRole) ? window.state.selectedLoginRole : 'farmer';
         const { data, error } = await supabaseClient.auth.signInWithPassword({ email: usernameInput, password: passwordInput });
         if (error) {
-          const mayNeedConfirmation = /email not confirmed|invalid login credentials/i.test(error.message || '');
-          window.state.canResendSignupConfirmation = mayNeedConfirmation;
-          window.state.loginError = mayNeedConfirmation
-            ? 'Sign-in failed. This account may need email confirmation, or the password may be incorrect. Resend confirmation below if needed.'
+          window.state.loginError = /email not confirmed|invalid login credentials/i.test(error.message || '')
+            ? 'Email or password is incorrect.'
             : error.message;
           window.renderMainViewOnly();
           return;
         }
-        await enterSupabaseSession(data.user);
+        await enterSupabaseSession(data.user, role);
         return;
       }
 
@@ -1657,12 +1654,13 @@
               ${window.state.loginError ? `
                 <div class="p-3 border border-red-500 bg-red-50 text-red-800 font-bold text-xs uppercase flex items-center justify-between">
                   <span>⚠️ ${window.state.loginError}</span>
-                  <button onclick="window.state.loginError=''; window.state.canResendSignupConfirmation=false; window.renderMainViewOnly();" class="text-red-900 font-bold">✕</button>
+                  <button onclick="window.state.loginError=''; window.renderMainViewOnly();" class="text-red-900 font-bold" aria-label="Dismiss error">✕</button>
                 </div>
               ` : ''}
-              ${window.state.canResendSignupConfirmation ? `
-                <button type="button" onclick="window.handleSupabaseResendSignupConfirmation(event)" class="w-full border border-amber-500 bg-amber-50 p-3 font-bold text-xs uppercase text-amber-900">Resend confirmation email</button>
-              ` : ''}
+              <div class="grid grid-cols-2 gap-2" role="group" aria-label="Choose account type">
+                <button type="button" onclick="window.setLoginRole('farmer')" aria-pressed="${window.state.selectedLoginRole !== 'retailer'}" class="border p-3 font-bold text-xs uppercase ${window.state.selectedLoginRole !== 'retailer' ? 'border-emerald-800 bg-[#064E3B] text-emerald-300' : 'border-slate-300 bg-white text-slate-600'}">Farmer</button>
+                <button type="button" onclick="window.setLoginRole('retailer')" aria-pressed="${window.state.selectedLoginRole === 'retailer'}" class="border p-3 font-bold text-xs uppercase ${window.state.selectedLoginRole === 'retailer' ? 'border-emerald-800 bg-[#064E3B] text-emerald-300' : 'border-slate-300 bg-white text-slate-600'}">Retailer</button>
+              </div>
 
               <!-- Credential Login Form -->
               <form onsubmit="window.handleLoginSubmit(event)" class="space-y-4 text-xs">
@@ -1679,7 +1677,7 @@
                   AUTHENTICATE & ENTER DASHBOARD →
                 </button>
               </form>
-              ${supabaseConfigured ? `<button type="button" onclick="window.handleSupabaseSignup(event)" class="w-full border border-slate-400 bg-white p-3 font-bold text-xs uppercase text-slate-700">Create farmer account</button><p class="text-[10px] text-slate-500">Accounts and app records are private to your signed-in account.</p>` : ''}
+              ${supabaseConfigured ? `<button type="button" onclick="window.handleSupabaseSignup(event)" class="w-full border border-slate-400 bg-white p-3 font-bold text-xs uppercase text-slate-700">Create ${window.state.selectedLoginRole === 'retailer' ? 'retailer' : 'farmer'} account</button><p class="text-[10px] text-slate-500">Accounts and app records are private to your signed-in account.</p>` : ''}
 
             </div>
           `;
