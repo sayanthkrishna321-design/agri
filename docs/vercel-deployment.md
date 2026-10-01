@@ -4,11 +4,10 @@
 
 The React/Vite frontend can be deployed as a Vercel static site.
 
-1. Import the GitHub repository in Vercel.
-2. Set the project root directory to `frontend`.
-3. Use the Vite framework preset, build command `npm run build`, and output directory `dist`.
-4. Set `VITE_API_BASE_URL` to the public API base URL, ending in `/api` (for example, `https://api.example.com/api`).
-5. Deploy, then check the browser console and the API health endpoint.
+1. Import the GitHub repository in Vercel and leave the project root at the repository root. The root `vercel.json` builds the app in `frontend` and serves `frontend/dist`.
+2. Alternatively, if the Vercel project root is set to `frontend`, its local `vercel.json` handles the Vite build and SPA fallback.
+3. Set `VITE_API_BASE_URL` to the public API base URL, ending in `/api` (for example, `https://api.example.com/api`).
+4. Deploy, then check the browser console and the API health endpoint.
 
 The `frontend/vercel.json` file provides the SPA fallback for client-side routes. The API URL is supplied at build time; the local default points to `localhost` and must not be used for a public deployment.
 
