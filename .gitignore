@@ -1,0 +1,77 @@
+# ============================================================
+# AgriSentinel X — .gitignore
+# ============================================================
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+*.egg-link
+.eggs/
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+ENV/
+.env.bak
+
+# --- Secrets — NEVER commit real keys ---
+.env
+*.pem
+*.key
+*.crt
+
+# --- Django ---
+db.sqlite3
+*.sqlite3
+staticfiles/
+local_settings.py
+
+# --- Testing / Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+
+# --- IDE & OS ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Docker ---
+*.log
+
+# --- Node / Frontend ---
+node_modules/
+.npm/
+frontend/dist/
+frontend/build/
+frontend/.env
+
+# --- FAISS index (regenerate from corpus; large binary files) ---
+*.index
+*.faiss
+AgriSentinelX/AgriSentinelX/rag/embeddings/metadata.json
+# Uncomment if FAISS index is in version control:
+# !AgriSentinelX/AgriSentinelX/rag/embeddings/*.index
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+*.ipynb

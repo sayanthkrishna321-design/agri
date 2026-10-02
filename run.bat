@@ -13,6 +13,17 @@ ECHO.
 REM Navigate to project root directory
 CD /D "%~dp0"
 
+REM Build the frontend if this clean checkout does not contain generated assets.
+IF NOT EXIST "frontend\dist\index.html" (
+    ECHO Frontend build not found. Install locked dependencies and build it now...
+    CD /D "%~dp0frontend"
+    CALL npm ci
+    IF ERRORLEVEL 1 EXIT /B 1
+    CALL npm run build
+    IF ERRORLEVEL 1 EXIT /B 1
+    CD /D "%~dp0"
+)
+
 REM Run migrations to ensure SQLite database is up-to-date
 ECHO [1/3] Running database migrations...
 python agrisentinel/agrisentinel/manage.py migrate --noinput

@@ -12,6 +12,8 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
+  const authToken = sessionStorage.getItem('agrisentinel_token');
+  if (authToken) defaultHeaders.Authorization = `Token ${authToken}`;
 
   const config: RequestInit = {
     ...options,
@@ -32,6 +34,15 @@ async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise
     console.warn(`[API] Error contacting ${endpoint}:`, err.message || err);
     throw err;
   }
+}
+
+export async function login(username: string, password: string): Promise<{ token: string; role: string }> {
+  const result = await fetchApi<{ token: string; role: string }>('/login/', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  });
+  sessionStorage.setItem('agrisentinel_token', result.token);
+  return result;
 }
 
 // System Health

@@ -11,8 +11,6 @@ Environment variables (copy .env.example to .env and fill real values):
 """
 
 import os
-import pymysql
-pymysql.install_as_MySQLdb()
 import sys
 import logging
 from pathlib import Path
@@ -40,19 +38,18 @@ if RAG_DIR.exists() and str(RAG_DIR) not in sys.path:
 # ---------------------------------------------------------------------------
 # Security settings
 # ---------------------------------------------------------------------------
-_raw_secret = os.getenv("SECRET_KEY", "")
-if not _raw_secret or _raw_secret.startswith("django-insecure"):
-    if os.getenv("DEBUG", "True").lower() not in ["true", "1", "yes"]:
-        raise RuntimeError(
-            "SECRET_KEY must be set to a strong random value in production/demo. "
-            "Never use the insecure default in deployment."
-        )
-    _raw_secret = _raw_secret or "django-insecure-dev-only-placeholder"
-
+DEBUG = os.getenv("DEBUG", "False").lower() in ["true", "1", "yes"]
+_raw_secret = os.getenv("SECRET_KEY", "").strip()
+_placeholder_secret = not _raw_secret or _raw_secret.lower().startswith(("django-insecure", "your-", "change-me"))
+if _placeholder_secret:
+    if not DEBUG:
+        raise RuntimeError("Set SECRET_KEY to a strong random value when DEBUG is False.")
+    _raw_secret = "django-insecure-local-development-only"
+elif not DEBUG and len(_raw_secret) < 50:
+    raise RuntimeError("SECRET_KEY must be at least 50 characters when DEBUG is False.")
 SECRET_KEY = _raw_secret
-DEBUG = os.getenv("DEBUG", "True").lower() in ["true", "1", "yes"]
 
-_allowed_raw = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1" if not DEBUG else "*")
+_allowed_raw = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1")
 ALLOWED_HOSTS = [h.strip() for h in _allowed_raw.split(",") if h.strip()]
 
 # ---------------------------------------------------------------------------
@@ -67,6 +64,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "rest_framework.authtoken",
     "core",
 ]
 
@@ -84,7 +82,11 @@ MIDDLEWARE = [
 
 # CORS – restrict in production
 if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [
+        h.strip() for h in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+        if h.strip()
+    ]
 else:
     CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
@@ -92,6 +94,17 @@ else:
         if h.strip()
     ]
 CORS_ALLOW_CREDENTIALS = True
+
+if not DEBUG:
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    secure_cookies = os.getenv("SESSION_COOKIE_SECURE", "False").lower() in ["true", "1", "yes"]
+    SESSION_COOKIE_SECURE = secure_cookies
+    CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", str(secure_cookies)).lower() in ["true", "1", "yes"]
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "False").lower() in ["true", "1", "yes"]
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = os.getenv("SECURE_HSTS_INCLUDE_SUBDOMAINS", "False").lower() in ["true", "1", "yes"]
+    SECURE_HSTS_PRELOAD = os.getenv("SECURE_HSTS_PRELOAD", "False").lower() in ["true", "1", "yes"]
 
 ROOT_URLCONF = "backend.urls"
 
@@ -123,6 +136,8 @@ DB_HOST = os.getenv("DB_HOST", "db")
 DB_PORT = os.getenv("DB_PORT", "3306")
 
 if DB_ENGINE == "mysql":
+    if not DB_PASSWORD.strip() or DB_PASSWORD.lower().startswith(("your_", "change-me", "placeholder")):
+        raise RuntimeError("Set DB_PASSWORD to a private non-placeholder value for MySQL.")
     # Fail clearly if the MySQL driver is missing — do NOT silently fall back.
     try:
         import MySQLdb  # noqa: F401
@@ -146,8 +161,7 @@ if DB_ENGINE == "mysql":
             },
         }
     }
-    logger.info("Database: MySQL (%s@%s:%s/%s)", DB_USER, DB_HOST, DB_PORT, DB_NAME)
-else:
+elif DB_ENGINE == "sqlite3":
     # SQLite — acceptable for local development only, NOT for the submission demo.
     DATABASES = {
         "default": {
@@ -155,10 +169,8 @@ else:
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-    logger.warning(
-        "Database: SQLite (local dev mode). "
-        "Set DB_ENGINE=mysql for the hackathon submission demo."
-    )
+else:
+    raise RuntimeError("DB_ENGINE must be either 'mysql' or 'sqlite3'.")
 
 # ---------------------------------------------------------------------------
 # Password validation
@@ -190,6 +202,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Django REST Framework
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {"anon": "30/hour", "user": "120/hour"},
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
         "rest_framework.renderers.BrowsableAPIRenderer",

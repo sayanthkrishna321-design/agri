@@ -141,16 +141,16 @@ class WeatherTool:
             "timezone": req.timezone,
         }
 
-        logger.info("Requesting weather data from %s for lat=%s, lon=%s", url, req.latitude, req.longitude)
+        logger.info("Requesting weather data from the configured forecast/archive service")
 
         try:
             response = self.session.get(url, params=params, timeout=self.timeout)
         except requests.exceptions.Timeout as te:
-            logger.warning("Weather API request timed out: %s", str(te))
+            logger.warning("Weather API request timed out")
             raise WeatherAPIError("Weather API request timed out", status_code=504) from te
         except requests.exceptions.RequestException as re:
-            logger.warning("Weather API network error: %s", str(re))
-            raise WeatherAPIError(f"Weather API network error: {str(re)}", status_code=502) from re
+            logger.warning("Weather API network error (%s)", type(re).__name__)
+            raise WeatherAPIError("Weather API network error", status_code=502) from re
 
         if response.status_code != 200:
             raise WeatherAPIError(f"Weather API returned HTTP {response.status_code}", status_code=response.status_code)
@@ -158,7 +158,7 @@ class WeatherTool:
         try:
             data = response.json()
         except Exception as je:
-            raise WeatherAPIError(f"Failed to parse JSON response: {str(je)}", status_code=502) from je
+            raise WeatherAPIError("Failed to parse JSON response", status_code=502) from je
 
         if "daily" not in data or not isinstance(data["daily"], dict):
             raise WeatherAPIError("Weather API response missing 'daily' data object", status_code=502)

@@ -9,7 +9,7 @@ import requests
 
 from agri_agent.agent import AgriSentinelAgent
 from agri_agent.models import AgentStatus
-from agri_agent.gemini_provider import GeminiProvider, GroundedTemplateEngine
+from agri_agent.gemini_provider import GroqProvider, GeminiProvider, GroundedTemplateEngine
 
 
 def test_weather_api_timeout_handling():
@@ -52,12 +52,11 @@ def test_weather_api_http_500_handling():
         assert "HTTP 500" in res.error_status
 
 
-def test_gemini_fallback_when_key_missing(monkeypatch):
-    """Verify seamless fallback to GroundedTemplateEngine when GEMINI_API_KEY is missing."""
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+def test_groq_fallback_when_key_missing(monkeypatch):
+    """Verify fallback to GroundedTemplateEngine when the Groq key is missing."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
 
-    provider = GeminiProvider()
+    provider = GroqProvider()
     assert provider.is_available is False
 
     explanation = provider.generate(
@@ -67,3 +66,16 @@ def test_gemini_fallback_when_key_missing(monkeypatch):
 
     assert "additional details" in explanation
     assert "latitude" in explanation
+
+
+def test_gemini_provider_is_deprecated_compatibility_alias():
+    assert GeminiProvider is GroqProvider
+
+
+def test_groq_provider_outage_uses_safe_fallback(monkeypatch):
+    monkeypatch.setenv("GROQ_API_KEY", "test-placeholder")
+    provider = GroqProvider()
+    with patch("groq.Groq", side_effect=RuntimeError("private provider response")):
+        result = provider.generate(query="weather summary", missing_info=["latitude"])
+    assert "latitude" in result
+    assert "private provider response" not in result

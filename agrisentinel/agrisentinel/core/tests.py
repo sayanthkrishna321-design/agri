@@ -1,6 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from rest_framework import status
+from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from core.models import Profile, Farm, Crop, RetailerRequirement, Offer, Order
 
@@ -11,6 +12,8 @@ class AgriSentinelAPITests(TestCase):
         # Create test users
         self.farmer_user = User.objects.create_user(username="test_farmer", password=None)
         self.retailer_user = User.objects.create_user(username="test_retailer", password=None)
+        token, _ = Token.objects.get_or_create(user=self.farmer_user)
+        self.client.defaults["HTTP_AUTHORIZATION"] = f"Token {token.key}"
 
         # Create profiles
         self.farmer_profile = Profile.objects.create(user=self.farmer_user, role="FARMER", phone="", location="Test Area")
@@ -29,6 +32,10 @@ class AgriSentinelAPITests(TestCase):
             required_date="2026-05-01",
             status="OPEN"
         )
+
+    def test_marketplace_api_requires_authentication(self):
+        response = Client().get(reverse("crop-list"))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_health_check(self):
         response = self.client.get(reverse("health"))

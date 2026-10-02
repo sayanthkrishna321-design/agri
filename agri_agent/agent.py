@@ -18,7 +18,7 @@ from agri_agent.models import (
 )
 from agri_agent.weather import get_weather
 from agri_agent.insurance_rules import evaluate_insurance_rules
-from agri_agent.gemini_provider import GeminiProvider
+from agri_agent.groq_provider import GroqProvider
 from agri_agent.config import DEMO_RULES_NOTICE, WEATHER_LOSS_DISCLAIMER
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,14 @@ class AgriSentinelAgent:
     Can be imported directly into Django REST Framework views or services.
     """
 
-    def __init__(self, gemini_provider: Optional[GeminiProvider] = None):
-        self.gemini_provider = gemini_provider or GeminiProvider()
+    def __init__(
+        self,
+        groq_provider: Optional[GroqProvider] = None,
+        gemini_provider: Optional[GroqProvider] = None,
+    ):
+        # gemini_provider is retained as a deprecated constructor keyword.
+        self.groq_provider = groq_provider or gemini_provider or GroqProvider()
+        self.gemini_provider = self.groq_provider
 
     def classify_intent(self, query: str, has_insurance_fields: bool, has_geo_fields: bool) -> AgentIntent:
         """Determines query intent based on keywords and provided structured parameters."""
@@ -205,11 +211,11 @@ class AgriSentinelAgent:
                 if weather_res.warnings:
                     uncertainty_notes.extend(weather_res.warnings)
             except WeatherError as we:
-                logger.error("Weather tool execution error: %s", str(we))
+                logger.error("Weather tool execution failed (%s)", type(we).__name__)
                 error_status = f"Weather Tool Error: {we.message if hasattr(we, 'message') else str(we)}"
                 uncertainty_notes.append("Weather evidence is currently unavailable due to API retrieval failure.")
             except Exception as ex:
-                logger.error("Unexpected weather tool failure: %s", str(ex))
+                logger.error("Unexpected weather tool failure (%s)", type(ex).__name__)
                 error_status = f"Weather Tool Error: {str(ex)}"
                 uncertainty_notes.append("Weather evidence is currently unavailable.")
 
@@ -233,7 +239,7 @@ class AgriSentinelAgent:
                     proof_of_origin.update(insurance_res.proof_of_origin)
                 proof_of_origin["insurance_eligibility_decision"] = f"Deterministic Rule Engine -> Potentially Eligible: {insurance_res.is_potentially_eligible}"
             except InsuranceRuleError as ie:
-                logger.error("Insurance rule checker error: %s", str(ie))
+                logger.error("Insurance rule checker failed (%s)", type(ie).__name__)
                 error_status = (error_status + " | " if error_status else "") + f"Insurance Rule Error: {str(ie)}"
 
         # Check Contradictions between claim & weather evidence
@@ -258,7 +264,7 @@ class AgriSentinelAgent:
             status = AgentStatus.SUCCESS
 
         # Generate Grounded LLM Narrative
-        ai_explanation = self.gemini_provider.generate(
+        ai_explanation = self.groq_provider.generate(
             query=request.query,
             weather=weather_res,
             insurance=insurance_res,

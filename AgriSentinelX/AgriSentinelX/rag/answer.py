@@ -285,7 +285,7 @@ def generate_grounded_answer(
         )
 
     except Exception as e:
-        logger.error("Groq API or Validation Error: %s", e)
+        logger.error("Groq API or response validation failed (%s)", type(e).__name__)
         total_latency = round(time.time() - start_total_time, 3)
 
         # Fallback safe response using retrieved evidence
@@ -307,7 +307,7 @@ def generate_grounded_answer(
             ),
             status=AnswerStatus.ERROR,
             eligibility_result=deterministic_eligibility,
-            uncertainty=f"Response generated under fallback due to: {str(e)}",
+            uncertainty="Response generated under a safe fallback after a provider or validation error.",
             missing_information=[],
             sources=fallback_sources,
             tool_results_used=[],

@@ -6,9 +6,7 @@ Loads FAISS vector index and metadata registry, encodes user queries,
 performs similarity search, applies relevance thresholds, and returns structured Pydantic RetrievedChunk instances.
 """
 
-import json
-import logging
-from pathlib import Path
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -21,7 +19,7 @@ except ImportError:
     faiss = None
 
 from rag.config import (
-    FAISS_INDEX_PATH, METADATA_PATH, EMBEDDING_MODEL,
+    DOCUMENTS_DIR, SOURCE_REGISTRY_PATH, FAISS_INDEX_PATH, METADATA_PATH, EMBEDDING_MODEL,
     TOP_K, RELEVANCE_THRESHOLD
 )
 from rag.ingest import get_embedding_model, format_text_for_embedding
@@ -63,6 +61,9 @@ def load_vector_store(
         return False
 
     try:
+        if faiss is None:
+            logger.warning("FAISS is unavailable; retrieval disabled.")
+            return False
         if _FAISS_INDEX_CACHE is None:
             logger.info(f"Loading FAISS index from '{index_path}'...")
             _FAISS_INDEX_CACHE = faiss.read_index(str(index_path))
@@ -72,9 +73,32 @@ def load_vector_store(
             with open(metadata_path, "r", encoding="utf-8") as f:
                 _METADATA_REGISTRY_CACHE = json.load(f)
 
+        chunks = _METADATA_REGISTRY_CACHE.get("chunks", [])
+        if _FAISS_INDEX_CACHE.ntotal != len(chunks):
+            logger.warning("FAISS index and metadata chunk counts differ; rebuild the index.")
+            _FAISS_INDEX_CACHE = None
+            _METADATA_REGISTRY_CACHE = None
+            return False
+        registry = json.loads(SOURCE_REGISTRY_PATH.read_text(encoding="utf-8"))
+        for chunk in chunks:
+            source_path = Path(chunk.get("file_path", ""))
+            pdf_path = DOCUMENTS_DIR / source_path.name
+            if source_path.is_absolute() or not pdf_path.is_file():
+                raise ValueError("Unverifiable RAG source path")
+            registered = registry.get(source_path.name, {})
+            digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+            if (
+                digest.lower() != str(registered.get("sha256", "")).lower()
+                or digest.lower() != str(chunk.get("sha256", "")).lower()
+                or registered.get("source_url") != chunk.get("source_url")
+            ):
+                raise ValueError("RAG source registry mismatch")
+
         return True
     except Exception as e:
-        logger.error(f"Failed to load vector store from disk: {e}")
+        logger.warning("RAG vector store is unverifiable or unreadable (%s); rebuild it.", type(e).__name__)
+        _FAISS_INDEX_CACHE = None
+        _METADATA_REGISTRY_CACHE = None
         return False
 
 
@@ -120,6 +144,9 @@ def retrieve_documents(
         logger.warning("FAISS vector store and metadata registry are empty.")
         return []
 
+    if top_k <= 0:
+        return []
+
     model_name = metadata_store.get("embedding_model", EMBEDDING_MODEL)
     model = get_embedding_model(model_name)
 
@@ -128,13 +155,13 @@ def retrieve_documents(
     # If FAISS index or sentence-transformers model is unavailable, use keyword fallback retrieval
     if index is None or model is None:
         logger.info("Using text keyword similarity fallback for retrieval.")
-        query_words = set(query.lower().split())
+        query_words = {word for word in query.lower().split() if len(word) > 2}
         scored_chunks = []
         for chunk in chunk_list:
             text_lower = chunk["text"].lower()
             matches = sum(1 for word in query_words if word in text_lower)
-            score = round(min(0.5 + (matches * 0.1), 0.95), 4)
-            if matches > 0 or len(chunk_list) <= 3:
+            score = round(matches / max(len(query_words), 1), 4)
+            if matches > 0 and score >= relevance_threshold:
                 scored_chunks.append((score, chunk))
         
         scored_chunks.sort(key=lambda x: x[0], reverse=True)
@@ -220,7 +247,7 @@ def retrieve_documents(
             break
 
     logger.info(
-        f"Retrieval query '{query[:40]}...' produced {len(retrieved_results)} relevant chunk(s) "
+        f"Retrieval produced {len(retrieved_results)} relevant chunk(s) "
         f"(top score: {retrieved_results[0].relevance_score if retrieved_results else 'None'})."
     )
 

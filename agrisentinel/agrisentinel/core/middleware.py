@@ -35,22 +35,10 @@ class CorrelationIDMiddleware:
         session_id = "-"
 
         # Inject into the root logger's thread-local factory for this thread
-        _old_factory = logging.getLogRecordFactory()
-
-        def _record_factory(*args, **kwargs):
-            record = _old_factory(*args, **kwargs)
-            record.request_id = request_id
-            record.session_id = getattr(request, "session_id_str", session_id)
-            return record
-
-        logging.setLogRecordFactory(_record_factory)
-
         start = time.monotonic()
         response = self.get_response(request)
         latency_ms = round((time.monotonic() - start) * 1000, 2)
 
-        # Restore the original factory to avoid leaking into other threads
-        logging.setLogRecordFactory(_old_factory)
 
         # Set session ID after session middleware has populated it
         try:

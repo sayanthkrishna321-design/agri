@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # -------------------------------------------------------------------------
   # MySQL 8 — session memory database (required for submission)
@@ -10,14 +8,16 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: agrisentinel
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-agrisentinel_mysql_pw}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_USER: agrisentinel
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root",
-             "-p${DB_PASSWORD:-agrisentinel_mysql_pw}"]
+             "-p${DB_PASSWORD:?Set DB_PASSWORD in .env}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -32,11 +32,11 @@ services:
       dockerfile: Dockerfile
     container_name: agrisentinel_backend
     restart: unless-stopped
-    # Run migrations automatically, then start gunicorn (or runserver for demo)
+    # Apply migrations, then serve Django through Gunicorn.
     command: >
       sh -c "
         python agrisentinel/agrisentinel/manage.py migrate --noinput &&
-        python agrisentinel/agrisentinel/manage.py runserver 0.0.0.0:8000
+        gunicorn --chdir agrisentinel/agrisentinel --bind 0.0.0.0:8000 backend.wsgi:application
       "
     ports:
       - "8000:8000"
@@ -48,16 +48,16 @@ services:
       - DB_HOST=db
       - DB_PORT=3306
       - DB_NAME=${DB_NAME:-agrisentinel}
-      - DB_USER=${DB_USER:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-agrisentinel_mysql_pw}
+      - DB_USER=${DB_USER:-agrisentinel}
+      - DB_PASSWORD=${DB_PASSWORD:?Set DB_PASSWORD in .env}
       # Safety for production demo
       - DEBUG=False
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - SECRET_KEY=${SECRET_KEY:?Set SECRET_KEY in .env}
+      - CORS_ALLOWED_ORIGINS=http://localhost:5173
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - .:/app
 
   # -------------------------------------------------------------------------
   # Vite / React frontend
@@ -71,7 +71,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_BASE_URL=http://backend:8000/api
+      - VITE_API_BASE_URL=http://localhost:8000/api
     depends_on:
       - backend
 
