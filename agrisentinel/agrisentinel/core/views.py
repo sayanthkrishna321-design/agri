@@ -12,7 +12,7 @@ rag_dir = root_dir / "AgriSentinelX" / "AgriSentinelX"
 if rag_dir.exists() and str(rag_dir) not in sys.path:
     sys.path.insert(0, str(rag_dir))
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
@@ -84,6 +84,7 @@ def _get_or_create_chat_session(request, session_key: str) -> ChatSession:
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
+@throttle_classes([])
 def health_check(request):
     """Health check endpoint confirming system status."""
     return Response(
