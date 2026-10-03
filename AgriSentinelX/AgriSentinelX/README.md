@@ -100,7 +100,7 @@ EMBEDDING_MODEL=intfloat/multilingual-e5-base
 
 ## 🚀 Running Ingestion & Building Vector Store
 
-Place your government policy PDFs (e.g., PMFBY Guidelines) into `rag/documents/` and run:
+Obtain a current policy PDF from its publisher, register its publisher URL and SHA-256 digest in `rag/documents/sources.json`, then review the full [verified source ingestion workflow](rag/documents/README.md). The repository's existing sample PDF is skipped because it is only a placeholder and is omitted from clean packages. Run:
 
 ```bash
 python rag/ingest.py

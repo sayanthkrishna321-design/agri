@@ -14,6 +14,7 @@ Handles:
 import os
 import re
 import json
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -35,7 +36,7 @@ except ImportError:
     SentenceTransformer = None
 
 from rag.config import (
-    DOCUMENTS_DIR, EMBEDDINGS_DIR, FAISS_INDEX_PATH, METADATA_PATH,
+    DOCUMENTS_DIR, EMBEDDINGS_DIR, FAISS_INDEX_PATH, METADATA_PATH, SOURCE_REGISTRY_PATH,
     EMBEDDING_MODEL, CHUNK_SIZE, CHUNK_OVERLAP
 )
 
@@ -174,9 +175,24 @@ def load_all_documents(documents_dir: Optional[Path] = None) -> List[Dict[str, A
         return []
 
     all_document_pages: List[Dict[str, Any]] = []
+    try:
+        source_registry = json.loads(SOURCE_REGISTRY_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        source_registry = {}
 
     for idx, pdf_path in enumerate(sorted(pdf_files), start=1):
         doc_id = f"DOC{idx:03d}"
+        if pdf_path.stem.lower().startswith("sample_"):
+            logger.warning("Skipping placeholder PDF '%s'; add a verified source document instead.", pdf_path.name)
+            continue
+        registered_source = source_registry.get(pdf_path.name)
+        if not registered_source or not registered_source.get("source_url") or not registered_source.get("sha256"):
+            logger.warning("Skipping unregistered PDF '%s'; record source_url and sha256 in sources.json.", pdf_path.name)
+            continue
+        digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+        if digest.lower() != str(registered_source["sha256"]).lower():
+            logger.warning("Skipping PDF '%s'; its hash does not match the source registry.", pdf_path.name)
+            continue
         doc_title = pdf_path.stem.replace("_", " ").replace("-", " ").title()
 
         logger.info(f"Ingesting [{doc_id}] {pdf_path.name}...")
@@ -185,9 +201,12 @@ def load_all_documents(documents_dir: Optional[Path] = None) -> List[Dict[str, A
         for p in pages:
             all_document_pages.append({
                 "document_id": doc_id,
-                "document_title": doc_title,
+                "document_title": registered_source.get("title") or doc_title,
+                "source_url": registered_source["source_url"],
+                "publisher": registered_source.get("publisher"),
+                "sha256": digest,
                 "file_name": pdf_path.name,
-                "file_path": str(pdf_path),
+                "file_path": pdf_path.name,
                 "page": p["page"],
                 "text": p["text"]
             })
@@ -209,6 +228,8 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, chunk_overlap: int = CHU
     Returns:
         List[str]: List of text chunk strings.
     """
+    if chunk_size < 1 or chunk_overlap < 0 or chunk_overlap >= chunk_size:
+        raise ValueError("chunk_size must be positive and chunk_overlap must be in [0, chunk_size).")
     if not text or not text.strip():
         return []
 
@@ -277,6 +298,9 @@ def chunk_documents(
                 "chunk_id": chunk_id,
                 "document_id": doc_id,
                 "document_title": doc_title,
+                "source_url": page_record.get("source_url"),
+                "publisher": page_record.get("publisher"),
+                "sha256": page_record.get("sha256"),
                 "file_name": file_name,
                 "file_path": file_path,
                 "page": page_num,
@@ -386,6 +410,11 @@ def create_faiss_index(
         logger.warning("No chunks or embeddings available to build FAISS index.")
         return False
 
+    if embeddings.ndim != 2 or len(chunks) != embeddings.shape[0] or not np.isfinite(embeddings).all():
+        raise ValueError("Embeddings must be a finite 2D array with one row per chunk.")
+    if faiss is None:
+        logger.error("faiss-cpu is required to create an index.")
+        return False
     num_vectors, dim = embeddings.shape
     logger.info(f"Building FAISS IndexFlatIP for {num_vectors} vectors of dimension {dim}...")
 
@@ -408,8 +437,11 @@ def create_faiss_index(
         "chunks": chunks
     }
 
-    with open(metadata_path, "w", encoding="utf-8") as f:
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = metadata_path.with_suffix(metadata_path.suffix + ".tmp")
+    with temporary_path.open("w", encoding="utf-8") as f:
         json.dump(metadata_payload, f, indent=2, ensure_ascii=False)
+    temporary_path.replace(metadata_path)
 
     logger.info(f"Saved metadata registry to '{metadata_path}' with {num_vectors} records.")
     return True
